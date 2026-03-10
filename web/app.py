@@ -78,6 +78,8 @@ async def lifespan(app: FastAPI):
 
 limiter = Limiter(key_func=get_remote_address)
 
+MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
+
 app = FastAPI(
     title="Trend Vision One Reporter",
     description="Multi-customer security report management portal",
@@ -90,6 +92,22 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
+
+# Reject oversized request bodies before they reach route handlers
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.responses import Response as StarletteResponse
+
+class _MaxBodyMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        cl = request.headers.get("content-length")
+        if cl and int(cl) > MAX_UPLOAD_BYTES:
+            return StarletteResponse(
+                content=f"Upload exceeds {MAX_UPLOAD_BYTES // (1024*1024)} MB limit.",
+                status_code=413,
+            )
+        return await call_next(request)
+
+app.add_middleware(_MaxBodyMiddleware)
 
 # ── Static files ──────────────────────────────────────────────────────────────
 

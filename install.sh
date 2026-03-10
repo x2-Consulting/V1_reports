@@ -426,7 +426,7 @@ CADDY_DEFAULT
 # ── TV1 Reporter ──────────────────────────────────────────────────────
 ${CADDY_SERVER_NAME} {
     request_body {
-        max_size 100MB
+        max_size 500MB
     }
     reverse_proxy 127.0.0.1:${APP_PORT} {
         transport http {
@@ -497,8 +497,8 @@ server {
     listen [::]:80;
     server_name ${DOMAIN};
 
-    # Allow large CSV uploads
-    client_max_body_size 100M;
+    # Allow large CSV uploads (up to 500 MB)
+    client_max_body_size 500M;
 
     # Let's Encrypt HTTP challenge (kept even after SSL redirect)
     location /.well-known/acme-challenge/ {
@@ -513,9 +513,9 @@ server {
         proxy_set_header    X-Real-IP         \$remote_addr;
         proxy_set_header    X-Forwarded-For   \$proxy_add_x_forwarded_for;
         proxy_set_header    X-Forwarded-Proto \$scheme;
-        proxy_read_timeout  300s;
-        proxy_connect_timeout 300s;
-        proxy_send_timeout  300s;
+        proxy_read_timeout    600s;
+        proxy_connect_timeout  60s;
+        proxy_send_timeout    600s;
     }
 }
 NGINXEOF

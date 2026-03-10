@@ -15,6 +15,28 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+
+def _age_label(published: str) -> str:
+    """Return a human-readable age string from an ISO date, e.g. '2yr 3mo ago'."""
+    if not published:
+        return "—"
+    try:
+        dt = datetime.fromisoformat(str(published)[:10])
+        days = (datetime.utcnow().date() - dt.date()).days
+        if days < 0:
+            return "—"
+        if days == 0:
+            return "Today"
+        if days < 30:
+            return f"{days}d ago"
+        if days < 365:
+            return f"{days // 30}mo ago"
+        yrs = days // 365
+        mos = (days % 365) // 30
+        return f"{yrs}yr {mos}mo ago" if mos else f"{yrs}yr ago"
+    except (ValueError, AttributeError, TypeError):
+        return "—"
+
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib.pagesizes import A4, landscape
@@ -335,21 +357,28 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
         prio_col = PRIORITY_COLORS.get(g["install_priority"], MID_GREY)
 
         # ── Patch header bar ──
+        cvss_display = f"CVSS {g['worst_cvss']:.1f}"
         header_data = [[
             Paragraph(
                 f'<font color="white"><b>#{idx} — {_t(g["patch_key"], 40)}</b>  '
                 f'<font size="8">{PATCH_TYPE_LABELS.get(g["patch_type"], "")} · '
                 f'{g["install_priority"].upper()} PRIORITY</font></font>',
                 sty["body"],
-            )
+            ),
+            Paragraph(
+                f'<font color="white"><b>{cvss_display}</b></font>',
+                ParagraphStyle("HdrRight", parent=sty["body"],
+                               alignment=TA_RIGHT, textColor=WHITE),
+            ),
         ]]
-        header_tbl = Table(header_data, colWidths=[CONTENT_W])
+        header_tbl = Table(header_data, colWidths=[CONTENT_W * 0.78, CONTENT_W * 0.22])
         header_tbl.setStyle(TableStyle([
             ("BACKGROUND",    (0, 0), (-1, -1), prio_col),
             ("TOPPADDING",    (0, 0), (-1, -1), 7),
             ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
             ("LEFTPADDING",   (0, 0), (-1, -1), 8),
             ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+            ("VALIGN",        (0, 0), (-1, -1), "MIDDLE"),
             ("ROUNDEDCORNERS", [4, 4, 0, 0]),
         ]))
 
@@ -405,58 +434,66 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
         ID_W    = 3.2 * cm
         SEV_W   = 2.2 * cm
         CVSS_W  = 1.4 * cm
+        AGE_W   = 2.0 * cm
         CWE_W   = 2.4 * cm
         EXP_W   = 3.6 * cm
-        DESC_W  = CONTENT_W - ID_W - SEV_W - CVSS_W  # remaining for description
+        DESC_W  = CONTENT_W - ID_W - SEV_W - CVSS_W - AGE_W  # remaining for description
 
         if has_cwe and has_exploit:
-            # 5 cols: drop Description to keep it readable; show it separately
-            cve_headers = ["CVE ID", "Severity", "CVSS", "CWE", "Exploit Potential"]
+            # 6 cols: CVE | Sev | CVSS | Age | CWE | Exploit
+            cve_headers = ["CVE ID", "Severity", "CVSS", "Age", "CWE", "Exploit Potential"]
             cve_rows = [cve_headers]
             for v in g["cve_details"]:
                 cve_rows.append([
                     Paragraph(_t(v.get("cveId", v.get("id", "—")), 20), sty["cell"]),
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
+                    Paragraph(_age_label(v.get("published", "")), sty["cell"]),
                     Paragraph(_t(v.get("cwe", "—"), 18), sty["cell"]),
                     Paragraph(_t(v.get("exploit", "—"), 30), sty["cell"]),
                 ])
-            cve_col_widths = [ID_W, SEV_W, CVSS_W, CWE_W, CONTENT_W - ID_W - SEV_W - CVSS_W - CWE_W]
+            rest = CONTENT_W - ID_W - SEV_W - CVSS_W - AGE_W - CWE_W
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, AGE_W, CWE_W, rest]
         elif has_cwe:
-            cve_headers = ["CVE ID", "Severity", "CVSS", "CWE", "Description"]
+            cve_headers = ["CVE ID", "Severity", "CVSS", "Age", "CWE", "Description"]
             cve_rows = [cve_headers]
             for v in g["cve_details"]:
                 cve_rows.append([
                     Paragraph(_t(v.get("cveId", v.get("id", "—")), 20), sty["cell"]),
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
+                    Paragraph(_age_label(v.get("published", "")), sty["cell"]),
                     Paragraph(_t(v.get("cwe", "—"), 18), sty["cell"]),
                     Paragraph(_t(v.get("description", "—"), 120), sty["cell_desc"]),
                 ])
-            cve_col_widths = [ID_W, SEV_W, CVSS_W, CWE_W, CONTENT_W - ID_W - SEV_W - CVSS_W - CWE_W]
+            rest = CONTENT_W - ID_W - SEV_W - CVSS_W - AGE_W - CWE_W
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, AGE_W, CWE_W, rest]
         elif has_exploit:
-            cve_headers = ["CVE ID", "Severity", "CVSS", "Exploit Potential", "Description"]
+            cve_headers = ["CVE ID", "Severity", "CVSS", "Age", "Exploit Potential", "Description"]
             cve_rows = [cve_headers]
             for v in g["cve_details"]:
                 cve_rows.append([
                     Paragraph(_t(v.get("cveId", v.get("id", "—")), 20), sty["cell"]),
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
+                    Paragraph(_age_label(v.get("published", "")), sty["cell"]),
                     Paragraph(_t(v.get("exploit", "—"), 30), sty["cell"]),
                     Paragraph(_t(v.get("description", "—"), 120), sty["cell_desc"]),
                 ])
-            cve_col_widths = [ID_W, SEV_W, CVSS_W, EXP_W, CONTENT_W - ID_W - SEV_W - CVSS_W - EXP_W]
+            rest = CONTENT_W - ID_W - SEV_W - CVSS_W - AGE_W - EXP_W
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, AGE_W, EXP_W, rest]
         else:
-            cve_headers = ["CVE ID", "Severity", "CVSS", "Description"]
+            cve_headers = ["CVE ID", "Severity", "CVSS", "Age", "Description"]
             cve_rows = [cve_headers]
             for v in g["cve_details"]:
                 cve_rows.append([
                     Paragraph(_t(v.get("cveId", v.get("id", "—")), 20), sty["cell"]),
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
+                    Paragraph(_age_label(v.get("published", "")), sty["cell"]),
                     Paragraph(_t(v.get("description", "—"), 160), sty["cell_desc"]),
                 ])
-            cve_col_widths = [ID_W, SEV_W, CVSS_W, DESC_W]
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, AGE_W, DESC_W]
 
         cve_tbl = Table(
             cve_rows, colWidths=cve_col_widths, repeatRows=1,
@@ -529,6 +566,113 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
 
         elems.append(KeepTogether(header_block))
         elems.extend(body_block)
+
+    return elems
+
+
+# ── By-device appendix ────────────────────────────────────────────────────────
+
+def _by_device_section(sty: dict, groups: list) -> list:
+    """
+    Appendix: invert the patch→device map to device→patches.
+    For each device, list every patch it needs with priority, CVSS, and CVE count.
+    Mirrors the Qualys 'Missing Patch Report by Device' layout.
+    """
+    # Build {device_name: [(patch_key, patch_type, priority, cvss, cve_count, patch_url), ...]}
+    device_map: dict[str, list[dict]] = {}
+    for g in groups:
+        for detail in g["affected_asset_details"]:
+            if isinstance(detail, dict):
+                name = detail.get("hostname") or detail.get("ip") or "Unknown Asset"
+                ip   = detail.get("ip", "—")
+            else:
+                name = str(detail)
+                ip   = "—"
+            entry = {
+                "patch_key":       g["patch_key"],
+                "patch_type":      PATCH_TYPE_LABELS.get(g["patch_type"], g["patch_type"]),
+                "priority":        g["install_priority"],
+                "cvss":            g["worst_cvss"],
+                "cve_count":       g["cve_count"],
+                "patch_url":       g["patch_url"],
+                "ip":              ip,
+            }
+            device_map.setdefault(name, []).append(entry)
+
+    if not device_map:
+        return []
+
+    priority_order = {"Immediate": 0, "High": 1, "Medium": 2, "Low": 3}
+    elems: list = [
+        PageBreak(),
+        Paragraph("Appendix — Patches Required by Device", sty["section"]),
+        Paragraph(
+            "For each device, the table below lists every patch action required, "
+            "ordered by priority. Use this view to plan device-level remediation work.",
+            sty["body"],
+        ),
+        Spacer(1, 0.3 * cm),
+    ]
+
+    # Sort devices alphabetically
+    for device_name in sorted(device_map.keys()):
+        patches = sorted(
+            device_map[device_name],
+            key=lambda p: (priority_order.get(p["priority"], 9), -p["cvss"]),
+        )
+
+        # Device header
+        ip_str = patches[0]["ip"] if patches else "—"
+        total_cves = sum(p["cve_count"] for p in patches)
+        dev_header_data = [[
+            Paragraph(
+                f'<font color="white"><b>{_t(device_name, 50)}</b>'
+                f'  <font size="8">IP: {ip_str} · '
+                f'{len(patches)} patch action{"s" if len(patches) != 1 else ""} · '
+                f'{total_cves} CVE{"s" if total_cves != 1 else ""}</font></font>',
+                sty["body"],
+            )
+        ]]
+        dev_header_tbl = Table(dev_header_data, colWidths=[CONTENT_W])
+        dev_header_tbl.setStyle(TableStyle([
+            ("BACKGROUND",    (0, 0), (-1, -1), TV1_NAVY),
+            ("TOPPADDING",    (0, 0), (-1, -1), 6),
+            ("BOTTOMPADDING", (0, 0), (-1, -1), 6),
+            ("LEFTPADDING",   (0, 0), (-1, -1), 8),
+            ("RIGHTPADDING",  (0, 0), (-1, -1), 8),
+        ]))
+
+        # Patch rows
+        patch_rows = [["Patch / Identifier", "Type", "Priority", "CVSS", "CVEs Fixed", "Reference URL"]]
+        for p in patches:
+            prio_col = PRIORITY_COLORS.get(p["priority"], MID_GREY).hexval()
+            ref = _t(p["patch_url"], 50) if p["patch_url"] else "—"
+            patch_rows.append([
+                Paragraph(_t(p["patch_key"], 36), sty["cell"]),
+                Paragraph(p["patch_type"], sty["cell"]),
+                Paragraph(
+                    f'<font color="{prio_col}"><b>{p["priority"].upper()}</b></font>',
+                    sty["cell"],
+                ),
+                Paragraph(f'{p["cvss"]:.1f}', sty["cell"]),
+                Paragraph(str(p["cve_count"]), sty["cell"]),
+                Paragraph(
+                    f'<link href="{p["patch_url"]}">{ref}</link>'
+                    if p["patch_url"] else "—",
+                    sty["cell_desc"],
+                ),
+            ])
+        # 6 cols on ~17cm: Patch(4.8) | Type(2.6) | Priority(2.0) | CVSS(1.2) | CVEs(1.2) | URL(rest)
+        col_w = [4.8*cm, 2.6*cm, 2.0*cm, 1.2*cm, 1.2*cm, CONTENT_W - 11.8*cm]
+        patch_tbl = Table(patch_rows, colWidths=col_w, repeatRows=1, splitByRow=True)
+        patch_tbl.setStyle(TableStyle(
+            _table_style(6, header_bg=TV1_NAVY2)
+            + [("ALIGN", (3, 0), (4, -1), "CENTER")]
+        ))
+
+        elems.append(KeepTogether([dev_header_tbl, Spacer(1, 0)]))
+        elems.append(patch_tbl)
+        elems.append(Spacer(1, 0.6 * cm))
 
     return elems
 
@@ -645,6 +789,9 @@ def generate_patch_report(
         story.append(NextPageTemplate("Portrait"))
         story.append(PageBreak())
         story += _patch_detail_section(sty, groups)
+
+        # ── Portrait: by-device appendix ──────────────────────────────────────
+        story += _by_device_section(sty, groups)
     else:
         story.append(Spacer(1, 1 * cm))
         story.append(Paragraph(
