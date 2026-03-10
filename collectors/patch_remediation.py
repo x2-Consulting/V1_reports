@@ -255,11 +255,17 @@ def collect_patch_groups(
         )
         g.cve_ids = [v.get("cveId", v.get("id", "UNKNOWN")) for v in g.cve_details]
 
-    # Sort groups: Immediate first, then by worst CVSS descending
+    # Sort groups: priority tier first, then by impact score (CVEs × assets),
+    # then worst CVSS as tiebreaker.  This puts the single patch action that
+    # fixes the most vulnerabilities across the most machines at the top.
     priority_order = {"Immediate": 0, "High": 1, "Medium": 2, "Low": 3}
     result = sorted(
         groups.values(),
-        key=lambda g: (priority_order.get(g.install_priority, 9), -g.worst_cvss),
+        key=lambda g: (
+            priority_order.get(g.install_priority, 9),
+            -(g.cve_count * g.asset_count),
+            -g.worst_cvss,
+        ),
     )
 
     return result

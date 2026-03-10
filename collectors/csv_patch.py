@@ -396,9 +396,13 @@ def parse_csv_to_patch_groups(
         )
         g.cve_ids = [v["cveId"] for v in g.cve_details]
 
-    # ── Sort groups: Immediate first, then worst CVSS desc ────────────────────
+    # ── Sort groups: priority tier → impact score (CVEs × assets) → CVSS ─────
     priority_order = {"Immediate": 0, "High": 1, "Medium": 2, "Low": 3}
     return sorted(
         groups.values(),
-        key=lambda g: (priority_order.get(g.install_priority, 9), -g.worst_cvss),
+        key=lambda g: (
+            priority_order.get(g.install_priority, 9),
+            -(g.cve_count * g.asset_count),
+            -g.worst_cvss,
+        ),
     )

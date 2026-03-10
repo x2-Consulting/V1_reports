@@ -17,15 +17,18 @@ from typing import Any
 
 from reportlab.lib import colors
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
-from reportlab.lib.pagesizes import A4
+from reportlab.lib.pagesizes import A4, landscape
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import cm
 from reportlab.platypus import (
+    BaseDocTemplate,
+    Frame,
     HRFlowable,
     KeepTogether,
+    NextPageTemplate,
     PageBreak,
+    PageTemplate,
     Paragraph,
-    SimpleDocTemplate,
     Spacer,
     Table,
     TableStyle,
@@ -62,8 +65,16 @@ PATCH_TYPE_LABELS = {
     "no_patch":      "No Patch Available",
 }
 
-PAGE_W, PAGE_H = A4
-CONTENT_W = PAGE_W - 4 * cm   # usable width
+MARGIN        = 2 * cm
+BOTTOM_MARGIN = 2.5 * cm
+
+# Portrait (A4)
+PAGE_W, PAGE_H  = A4
+CONTENT_W       = PAGE_W - 2 * MARGIN          # ~17.0 cm
+
+# Landscape (A4 rotated)
+PAGE_LAND_W, PAGE_LAND_H = landscape(A4)
+CONTENT_LAND_W  = PAGE_LAND_W - 2 * MARGIN     # ~25.7 cm
 
 
 # ── Styles ─────────────────────────────────────────────────────────────────────
@@ -247,10 +258,12 @@ def _summary(sty: dict, groups: list) -> list:
     elems.append(Spacer(1, 0.5 * cm))
 
     elems.append(Paragraph(
-        "<b>How to read this report:</b> Each entry below represents a single patch "
-        "or update action. Installing one patch may fix multiple CVEs across multiple "
-        "assets. Patches are ordered by install priority — address <b>Immediate</b> "
-        "items first.",
+        "<b>How to read this report:</b> Each entry represents a single patch or update "
+        "action. Installing one patch may fix multiple CVEs across multiple assets. "
+        "Patches are ordered by <b>priority tier</b> first (Immediate → High → Medium → Low), "
+        "then by <b>impact score</b> (CVEs fixed × assets affected) so the highest-value "
+        "remediation within each tier appears first. The Patch Index on the following "
+        "page provides a complete sortable reference.",
         sty["body"],
     ))
     return elems
@@ -259,40 +272,53 @@ def _summary(sty: dict, groups: list) -> list:
 # ── Patch index table (overview) ───────────────────────────────────────────────
 
 def _patch_index(sty: dict, groups: list) -> list:
+    # This section renders in landscape — uses CONTENT_LAND_W
+    cw = CONTENT_LAND_W
+
     elems = [
-        PageBreak(),
         Paragraph("Patch Index — All Actions Required", sty["section"]),
         Paragraph(
-            "One row per distinct patch. Install items marked <b>Immediate</b> first.",
+            "Sorted by impact: patches fixing the most CVEs across the most assets appear first. "
+            "Address <b>Immediate</b> items before moving to lower priority tiers.",
             sty["body"],
         ),
         Spacer(1, 0.3 * cm),
     ]
 
     headers = ["#", "Patch / Identifier", "Type", "Vendor / Product",
-               "Priority", "CVEs Fixed", "Assets Affected"]
+               "Priority", "CVEs\nFixed", "Assets\nAffected", "Impact\nScore"]
     rows = [headers]
 
     for idx, g in enumerate(groups, 1):
         product_str = g["product"]
         if g["product_version"]:
             product_str += f" {g['product_version']}"
-        vendor_product = f"{g['vendor']}\n{product_str}" if g["vendor"] else product_str
+        vendor_product = f"{g['vendor']} — {product_str}" if g["vendor"] else product_str
+        impact = g["cve_count"] * g["asset_count"]
 
         rows.append([
             Paragraph(str(idx), sty["cell"]),
-            Paragraph(_t(g["patch_key"], 28), sty["cell"]),
+            Paragraph(_t(g["patch_key"], 40), sty["cell"]),
             Paragraph(PATCH_TYPE_LABELS.get(g["patch_type"], g["patch_type"]), sty["cell"]),
-            Paragraph(_t(vendor_product, 30), sty["cell"]),
+            Paragraph(_t(vendor_product, 44), sty["cell"]),
             _priority_badge(g["install_priority"], sty),
             Paragraph(str(g["cve_count"]), sty["cell"]),
             Paragraph(str(g["asset_count"]), sty["cell"]),
+            Paragraph(str(impact), sty["cell"]),
         ])
 
-    # 7 cols on 17cm: # | Patch | Type | Vendor/Product | Priority | CVEs | Assets
-    col_widths = [0.7*cm, 4.5*cm, 2.6*cm, 4.0*cm, 2.2*cm, 1.6*cm, 1.4*cm]
+    # 8 cols on ~25.7 cm landscape content width
+    # #(0.7) | Patch(6.5) | Type(3.0) | Vendor/Product(6.5) | Priority(2.4) | CVEs(1.8) | Assets(1.9) | Impact(1.9)
+    col_widths = [0.7*cm, 6.5*cm, 3.0*cm, 6.5*cm, 2.4*cm, 1.8*cm, 1.9*cm, 1.9*cm]
     tbl = Table(rows, colWidths=col_widths, repeatRows=1, splitByRow=True)
-    tbl.setStyle(TableStyle(_table_style(7)))
+
+    sty_cmds = _table_style(8)
+    # Centre the numeric columns
+    sty_cmds += [
+        ("ALIGN", (5, 0), (7, -1), "CENTER"),
+        ("FONTNAME", (5, 0), (7, 0), "Helvetica-Bold"),
+    ]
+    tbl.setStyle(TableStyle(sty_cmds))
     elems.append(tbl)
     return elems
 
@@ -507,14 +533,25 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
     return elems
 
 
-# ── Footer ─────────────────────────────────────────────────────────────────────
+# ── Footers (orientation-aware) ────────────────────────────────────────────────
 
-def _footer(canvas, doc):
+def _footer_portrait(canvas, doc):
     canvas.saveState()
     canvas.setFont("Helvetica", 7)
     canvas.setFillColor(MID_GREY)
-    canvas.drawString(2 * cm, 1.2 * cm, "Trend Vision One — Patch Remediation Report — Confidential")
-    canvas.drawRightString(PAGE_W - 2 * cm, 1.2 * cm, f"Page {doc.page}")
+    canvas.drawString(MARGIN, 1.2 * cm,
+                      "Trend Vision One — Patch Remediation Report — Confidential")
+    canvas.drawRightString(PAGE_W - MARGIN, 1.2 * cm, f"Page {doc.page}")
+    canvas.restoreState()
+
+
+def _footer_landscape(canvas, doc):
+    canvas.saveState()
+    canvas.setFont("Helvetica", 7)
+    canvas.setFillColor(MID_GREY)
+    canvas.drawString(MARGIN, 1.2 * cm,
+                      "Trend Vision One — Patch Remediation Report — Confidential")
+    canvas.drawRightString(PAGE_LAND_W - MARGIN, 1.2 * cm, f"Page {doc.page}")
     canvas.restoreState()
 
 
@@ -527,6 +564,11 @@ def generate_patch_report(
 ) -> str:
     """
     Build and save the patch remediation PDF.
+
+    Layout:
+      • Cover + Executive Summary  — portrait A4
+      • Patch Index overview table — landscape A4  (wider columns, impact score)
+      • Detailed patch entries     — portrait A4
 
     Args:
         patch_groups:  List of PatchGroup.to_dict() dicts from collect_patch_groups().
@@ -546,11 +588,37 @@ def generate_patch_report(
     generated_at = datetime.now(tz=timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
     sty = _styles()
 
-    doc = SimpleDocTemplate(
-        output_path,
+    # ── Page templates ────────────────────────────────────────────────────────
+    portrait_frame = Frame(
+        MARGIN, BOTTOM_MARGIN,
+        PAGE_W - 2 * MARGIN,
+        PAGE_H - MARGIN - BOTTOM_MARGIN,
+        id="portrait",
+    )
+    landscape_frame = Frame(
+        MARGIN, BOTTOM_MARGIN,
+        PAGE_LAND_W - 2 * MARGIN,
+        PAGE_LAND_H - MARGIN - BOTTOM_MARGIN,
+        id="landscape",
+    )
+    port_tmpl = PageTemplate(
+        id="Portrait",
+        frames=[portrait_frame],
         pagesize=A4,
-        leftMargin=2 * cm, rightMargin=2 * cm,
-        topMargin=2 * cm, bottomMargin=2.5 * cm,
+        onPage=_footer_portrait,
+    )
+    land_tmpl = PageTemplate(
+        id="Landscape",
+        frames=[landscape_frame],
+        pagesize=landscape(A4),
+        onPage=_footer_landscape,
+    )
+
+    doc = BaseDocTemplate(
+        output_path,
+        pageTemplates=[port_tmpl, land_tmpl],
+        leftMargin=MARGIN, rightMargin=MARGIN,
+        topMargin=MARGIN, bottomMargin=BOTTOM_MARGIN,
         title=f"Patch Remediation Report — {customer_name}",
         author="Trend Vision One Reporter",
     )
@@ -562,10 +630,20 @@ def generate_patch_report(
     ]
 
     story: list = []
+
+    # ── Portrait: cover + executive summary ───────────────────────────────────
     story += _cover(sty, customer_name, generated_at)
     story += _summary(sty, groups)
+
     if groups:
+        # ── Landscape: patch index overview ───────────────────────────────────
+        story.append(NextPageTemplate("Landscape"))
+        story.append(PageBreak())
         story += _patch_index(sty, groups)
+
+        # ── Portrait: detailed patch entries ──────────────────────────────────
+        story.append(NextPageTemplate("Portrait"))
+        story.append(PageBreak())
         story += _patch_detail_section(sty, groups)
     else:
         story.append(Spacer(1, 1 * cm))
@@ -574,5 +652,5 @@ def generate_patch_report(
             sty["body"],
         ))
 
-    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    doc.build(story)
     return os.path.abspath(output_path)
