@@ -58,13 +58,13 @@ The installer will prompt you for:
 ## Step 4 — Verify it's running
 ```bash
 # Check the app service
-systemctl --user status tv1reporter
+sudo systemctl status tv1reporter
 
 # Check Caddy (or nginx)
 sudo systemctl status caddy
 
 # Tail the app logs
-journalctl --user -u tv1reporter -f
+sudo journalctl -u tv1reporter -f
 ```
 
 Visit `https://tv1.example.com` — you should see the login page with a valid SSL cert.
@@ -102,10 +102,10 @@ sudo ufw enable
 ./install.sh
 
 # Manually restart the app
-systemctl --user restart tv1reporter
+sudo systemctl restart tv1reporter
 
 # Check for Python errors
-journalctl --user -u tv1reporter -n 50
+sudo journalctl -u tv1reporter -n 50
 ```
 
 > **Important:** The main thing to get right before running the installer is DNS propagation.
@@ -117,7 +117,7 @@ journalctl --user -u tv1reporter -n 50
 ```bash
 cd ~/V1
 git pull
-systemctl --user restart tv1reporter
+sudo systemctl restart tv1reporter
 ```
 
 If dependencies changed:
@@ -125,5 +125,5 @@ If dependencies changed:
 cd ~/V1
 source .venv/bin/activate
 pip install -r requirements.txt
-systemctl --user restart tv1reporter
+sudo systemctl restart tv1reporter
 ```

@@ -606,23 +606,22 @@ else
 fi
 
 # =============================================================================
-#  SECTION 6 — systemd user service
+#  SECTION 6 — systemd system service
 # =============================================================================
 hr
 echo -e "${BOLD}  Step 6/7 — Application service${RESET}"
 hr
 
-SERVICE_DIR="${HOME_DIR}/.config/systemd/user"
-mkdir -p "${SERVICE_DIR}"
-
-info "Writing systemd user service..."
-cat > "${SERVICE_DIR}/tv1reporter.service" <<SVCEOF
+info "Writing systemd system service..."
+sudo tee /etc/systemd/system/tv1reporter.service >/dev/null <<SVCEOF
 [Unit]
 Description=Trend Vision One Reporter (FastAPI)
 After=network.target mysql.service mariadb.service
 
 [Service]
 Type=simple
+User=${INSTALL_USER}
+Group=${INSTALL_USER}
 WorkingDirectory=${INSTALL_DIR}
 EnvironmentFile=${INSTALL_DIR}/.env
 ExecStart=${VENV_DIR}/bin/uvicorn web.app:app --host 127.0.0.1 --port ${APP_PORT}
@@ -630,23 +629,20 @@ Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=multi-user.target
 SVCEOF
 
-# Enable lingering so the user service survives logout and starts at boot
-sudo loginctl enable-linger "${INSTALL_USER}" 2>/dev/null || true
-
-systemctl --user daemon-reload
-systemctl --user enable tv1reporter
-systemctl --user restart tv1reporter
+sudo systemctl daemon-reload
+sudo systemctl enable tv1reporter
+sudo systemctl restart tv1reporter
 
 info "Waiting for application to start..."
 TRIES=0
-until systemctl --user is-active --quiet tv1reporter 2>/dev/null; do
+until sudo systemctl is-active --quiet tv1reporter 2>/dev/null; do
     TRIES=$(( TRIES + 1 ))
     [[ $TRIES -ge 15 ]] && {
         error "Application service failed to start after 15s."
-        error "Check logs: journalctl --user -u tv1reporter -n 50"
+        error "Check logs: sudo journalctl -u tv1reporter -n 50"
         exit 1
     }
     sleep 1
@@ -723,9 +719,9 @@ else
 fi
 echo ""
 echo -e "  ${BOLD}Useful commands:${RESET}"
-echo "  Logs    : journalctl --user -u tv1reporter -f"
-echo "  Restart : systemctl --user restart tv1reporter"
-echo "  Status  : systemctl --user status tv1reporter"
+echo "  Logs    : sudo journalctl -u tv1reporter -f"
+echo "  Restart : sudo systemctl restart tv1reporter"
+echo "  Status  : sudo systemctl status tv1reporter"
 if [[ "$WEBSERVER" == "nginx" ]] && $USE_SSL; then
     echo "  SSL cert: sudo certbot certificates"
     echo "  Renew   : sudo certbot renew --dry-run"
