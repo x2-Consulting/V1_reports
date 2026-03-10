@@ -1,0 +1,250 @@
+/*
+ * Trend Vision One Reporter — Custom styles
+ * Palette matched to Trend Vision One portal:
+ *   Navy:    #172239  (topbar / sidebar)
+ *   Red:     #D71920  (primary action, active states)
+ *   Accent:  #E8192C  (hover red)
+ *   BG:      #F4F6FA  (page background)
+ *   Card:    #FFFFFF
+ *   Text:    #1A1A2E / #6B6B6B
+ */
+
+:root {
+  --tv1-red:       #D71920;
+  --tv1-red-hover: #E8192C;
+  --tv1-red-dark:  #a81419;
+  --tv1-navy:      #172239;
+  --tv1-navy-mid:  #1e2d4a;
+  --tv1-navy-light:#2b3f63;
+  --tv1-bg:        #F4F6FA;
+  --tv1-mid:       #6B6B6B;
+  --tv1-text:      #1A1A2E;
+}
+
+/* ── Page background ─────────────────────────────────────────────────────── */
+
+body {
+  background-color: var(--tv1-bg);
+  color: var(--tv1-text);
+}
+
+/* ── Navbar ──────────────────────────────────────────────────────────────── */
+
+.tv1-navbar {
+  background-color: var(--tv1-navy);
+  border-bottom: 3px solid var(--tv1-red);
+  padding-top: 0;
+  padding-bottom: 0;
+  min-height: 56px;
+}
+
+.tv1-navbar .navbar-brand {
+  color: #ffffff;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 0.85rem 0;
+}
+
+.tv1-navbar .navbar-brand:hover {
+  color: #f0f0f0;
+}
+
+.tv1-navbar .nav-link {
+  color: rgba(255, 255, 255, 0.65);
+  font-size: 0.875rem;
+  padding: 1rem 0.85rem !important;
+  border-bottom: 3px solid transparent;
+  transition: color 0.15s, border-color 0.15s;
+  margin-bottom: -3px; /* align with navbar border-bottom */
+}
+
+.tv1-navbar .nav-link:hover {
+  color: #ffffff;
+  border-bottom-color: rgba(255,255,255,0.3);
+}
+
+.tv1-navbar .nav-link.active {
+  color: #ffffff;
+  border-bottom-color: var(--tv1-red);
+}
+
+/* Admin nav item styling */
+.tv1-navbar .nav-link.admin-link {
+  color: rgba(255, 210, 100, 0.8);
+}
+.tv1-navbar .nav-link.admin-link:hover,
+.tv1-navbar .nav-link.admin-link.active {
+  color: #ffd264;
+  border-bottom-color: #ffd264;
+}
+
+/* ── Trend Red utility ────────────────────────────────────────────────────── */
+
+.tv1-red { color: var(--tv1-red) !important; }
+
+/* ── Primary button ──────────────────────────────────────────────────────── */
+
+.btn-tv1 {
+  background-color: var(--tv1-red);
+  border-color: var(--tv1-red);
+  color: #ffffff;
+  font-weight: 500;
+}
+
+.btn-tv1:hover,
+.btn-tv1:focus {
+  background-color: var(--tv1-red-hover);
+  border-color: var(--tv1-red-hover);
+  color: #ffffff;
+}
+
+.btn-tv1:active {
+  background-color: var(--tv1-red-dark);
+  border-color: var(--tv1-red-dark);
+  color: #ffffff;
+}
+
+.btn-tv1:disabled {
+  background-color: var(--tv1-red);
+  border-color: var(--tv1-red);
+  opacity: 0.55;
+}
+
+/* ── Login page ──────────────────────────────────────────────────────────── */
+
+.tv1-login-wrapper {
+  min-height: 100vh;
+  background: linear-gradient(135deg, var(--tv1-navy) 0%, var(--tv1-navy-light) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tv1-login-card {
+  width: 100%;
+  max-width: 440px;
+  border-radius: 0.75rem;
+  overflow: hidden;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.28);
+}
+
+.tv1-login-header {
+  background-color: var(--tv1-red);
+  padding: 2rem;
+}
+
+/* ── Dashboard stat cards ────────────────────────────────────────────────── */
+
+.tv1-stat-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 0.65rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tv1-stat-card {
+  border-left: 4px solid var(--tv1-red) !important;
+}
+
+/* ── Cards ───────────────────────────────────────────────────────────────── */
+
+.card {
+  border-radius: 0.6rem;
+  box-shadow: 0 1px 4px rgba(23,34,57,0.07);
+}
+
+.card-header {
+  border-radius: 0.6rem 0.6rem 0 0 !important;
+  background-color: #ffffff;
+}
+
+/* ── Section headings inside cards ───────────────────────────────────────── */
+
+.card-header h5 {
+  font-size: 0.95rem;
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
+.table > :not(caption) > * > * {
+  padding-top: 0.65rem;
+  padding-bottom: 0.65rem;
+}
+
+.table thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--tv1-mid);
+  font-weight: 600;
+  border-bottom-width: 1px;
+}
+
+/* ── Breadcrumb ──────────────────────────────────────────────────────────── */
+
+.breadcrumb-item a {
+  color: var(--tv1-red);
+  text-decoration: none;
+}
+
+.breadcrumb-item a:hover {
+  text-decoration: underline;
+}
+
+/* ── Badges ──────────────────────────────────────────────────────────────── */
+
+.badge {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+/* ── Alerts ──────────────────────────────────────────────────────────────── */
+
+.alert {
+  border-left-width: 4px;
+  border-radius: 0.5rem;
+}
+
+/* ── Footer ──────────────────────────────────────────────────────────────── */
+
+footer {
+  font-size: 0.8rem;
+  color: var(--tv1-mid);
+  background-color: #ffffff !important;
+}
+
+/* ── Pre / code blocks ───────────────────────────────────────────────────── */
+
+pre {
+  background: #f0f2f7;
+  padding: 0.75rem;
+  border-radius: 0.4rem;
+  font-size: 0.82rem;
+}
+
+/* ── Spinner alignment ───────────────────────────────────────────────────── */
+
+.spinner-border-sm {
+  vertical-align: -0.125em;
+}
+
+/* ── Form controls ───────────────────────────────────────────────────────── */
+
+.form-control:focus,
+.form-select:focus {
+  border-color: var(--tv1-red);
+  box-shadow: 0 0 0 0.2rem rgba(215, 25, 32, 0.15);
+}
+
+.form-check-input:checked {
+  background-color: var(--tv1-red);
+  border-color: var(--tv1-red);
+}
+
+.form-check-input:focus {
+  box-shadow: 0 0 0 0.2rem rgba(215, 25, 32, 0.15);
+}

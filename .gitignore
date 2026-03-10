@@ -1,0 +1,22 @@
+# Secrets — never commit
+.env
+
+# Generated PDFs
+output/
+*.pdf
+
+# Python
+**/__pycache__/
+*.pyc
+*.pyo
+.venv/
+*.egg-info/
+
+# DB / local state
+*.db
+*.sqlite
+
+# Editor
+.vscode/
+.idea/
+*.swp

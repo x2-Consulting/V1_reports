@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block title %}Report #{{ report.id }} — TV1 Reporter{% endblock %}
+
+{% block head %}
+{% if auto_refresh %}
+<meta http-equiv="refresh" content="5" />
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/reports">Reports</a></li>
+        <li class="breadcrumb-item active">Report #{{ report.id }}</li>
+      </ol>
+    </nav>
+    <h2 class="fw-bold mb-0">
+      <i class="bi bi-file-earmark-pdf-fill me-2 tv1-red"></i>Report #{{ report.id }}
+    </h2>
+    {% if report.customer %}
+    <p class="text-muted mb-0">
+      Customer: <a href="/customers/{{ report.customer_id }}" class="fw-semibold">{{ report.customer.name }}</a>
+    </p>
+    {% endif %}
+  </div>
+  <div class="col-auto pt-4">
+    {% if report.status == 'done' %}
+    <a href="/reports/{{ report.id }}/download" class="btn btn-tv1">
+      <i class="bi bi-download me-1"></i>Download PDF
+    </a>
+    {% endif %}
+  </div>
+</div>
+
+<div class="row g-4">
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold">
+          <i class="bi bi-info-circle me-2 tv1-red"></i>Report Details
+        </h5>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-5 text-muted">Status</dt>
+          <dd class="col-7">
+            {% if report.status == 'done' %}
+              <span class="badge bg-success fs-6">
+                <i class="bi bi-check-circle me-1"></i>Done
+              </span>
+            {% elif report.status == 'running' %}
+              <span class="badge bg-primary fs-6">
+                <span class="spinner-border spinner-border-sm me-1" role="status"></span>Running
+              </span>
+              <div class="text-muted small mt-1">
+                <i class="bi bi-arrow-repeat me-1"></i>Page refreshes every 5 seconds…
+              </div>
+            {% elif report.status == 'pending' %}
+              <span class="badge bg-secondary fs-6">
+                <i class="bi bi-clock me-1"></i>Pending
+              </span>
+              <div class="text-muted small mt-1">
+                <i class="bi bi-arrow-repeat me-1"></i>Page refreshes every 5 seconds…
+              </div>
+            {% else %}
+              <span class="badge bg-danger fs-6">
+                <i class="bi bi-x-circle me-1"></i>Failed
+              </span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-5 text-muted">Customer</dt>
+          <dd class="col-7">
+            {% if report.customer %}
+            <a href="/customers/{{ report.customer_id }}">{{ report.customer.name }}</a>
+            {% else %}—{% endif %}
+          </dd>
+
+          <dt class="col-5 text-muted">API Key</dt>
+          <dd class="col-7">
+            {% if report.api_key %}
+            {{ report.api_key.label }}
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </dd>
+
+          <dt class="col-5 text-muted">Days Back</dt>
+          <dd class="col-7">{{ report.days_back }} days</dd>
+
+          <dt class="col-5 text-muted">Severity Filter</dt>
+          <dd class="col-7">
+            {% if severity_list %}
+              {% for sev in severity_list %}
+                {% if sev == 'critical' %}<span class="badge bg-danger me-1">{{ sev }}</span>
+                {% elif sev == 'high' %}<span class="badge bg-warning text-dark me-1">{{ sev }}</span>
+                {% elif sev == 'medium' %}<span class="badge bg-info text-dark me-1">{{ sev }}</span>
+                {% elif sev == 'low' %}<span class="badge bg-success me-1">{{ sev }}</span>
+                {% else %}<span class="badge bg-secondary me-1">{{ sev }}</span>{% endif %}
+              {% endfor %}
+            {% else %}
+              <span class="text-muted">All severities</span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-5 text-muted">Created</dt>
+          <dd class="col-7">{{ report.created_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}</dd>
+
+          <dt class="col-5 text-muted">Completed</dt>
+          <dd class="col-7">
+            {% if report.completed_at %}
+            {{ report.completed_at.strftime('%Y-%m-%d %H:%M:%S UTC') }}
+            {% else %}<span class="text-muted">—</span>{% endif %}
+          </dd>
+
+          {% if report.filename %}
+          <dt class="col-5 text-muted">Filename</dt>
+          <dd class="col-7"><code>{{ report.filename }}</code></dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  {% if report.error_message %}
+  <div class="col-md-6">
+    <div class="card border-0 shadow-sm border-start border-danger border-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold text-danger">
+          <i class="bi bi-exclamation-triangle-fill me-2"></i>
+          {% if report.status == 'failed' %}Error Details{% else %}Warnings{% endif %}
+        </h5>
+      </div>
+      <div class="card-body">
+        <pre class="mb-0 small text-danger" style="white-space: pre-wrap; word-break: break-word;">{{ report.error_message }}</pre>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  {% if report.status == 'done' %}
+  <div class="col-12">
+    <div class="card border-0 shadow-sm border-start border-success border-4">
+      <div class="card-body d-flex align-items-center gap-3 py-3">
+        <i class="bi bi-file-earmark-pdf-fill fs-2 text-success"></i>
+        <div>
+          <div class="fw-semibold">Report PDF is ready</div>
+          <div class="text-muted small">Click the button below to download the full security report.</div>
+        </div>
+        <div class="ms-auto">
+          <a href="/reports/{{ report.id }}/download" class="btn btn-tv1 btn-lg">
+            <i class="bi bi-download me-2"></i>Download PDF
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}

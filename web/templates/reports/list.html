@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+
+{% block title %}All Reports — TV1 Reporter{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+  <div class="col">
+    <h2 class="fw-bold mb-0">
+      <i class="bi bi-file-earmark-pdf-fill me-2 tv1-red"></i>All Reports
+    </h2>
+    <p class="text-muted mb-0">Generated security reports across all customers.</p>
+  </div>
+  <div class="col-auto">
+    <a href="/reports/upload-csv" class="btn btn-outline-primary btn-sm">
+      <i class="bi bi-filetype-csv me-1"></i>CSV Patch Upload
+    </a>
+  </div>
+</div>
+
+<div class="card border-0 shadow-sm">
+  <div class="card-body p-0">
+    {% if reports %}
+    <div class="table-responsive">
+      <table class="table table-hover align-middle mb-0">
+        <thead class="table-light">
+          <tr>
+            <th class="ps-3">#</th>
+            <th>Customer</th>
+            <th>Report Type</th>
+            <th>Status</th>
+            <th>Days Back</th>
+            <th>Severity</th>
+            <th>Created</th>
+            <th>Completed</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for report in reports %}
+          <tr>
+            <td class="ps-3 text-muted small">{{ report.id }}</td>
+            <td>
+              {% if report.customer %}
+              <a href="/customers/{{ report.customer_id }}" class="fw-semibold text-decoration-none">
+                {{ report.customer.name }}
+              </a>
+              {% else %}
+              <span class="text-muted">—</span>
+              {% endif %}
+            </td>
+            <td>
+              {% if report.report_type == 'patch_remediation' %}
+              <span class="badge bg-info text-dark">
+                <i class="bi bi-patch-check me-1"></i>Patch Remediation
+              </span>
+              {% elif report.report_type == 'executive_summary' %}
+              <span class="badge bg-primary">
+                <i class="bi bi-bar-chart-fill me-1"></i>Executive Summary
+              </span>
+              {% elif report.report_type == 'mitre_heatmap' %}
+              <span class="badge bg-danger">
+                <i class="bi bi-grid-3x3-gap-fill me-1"></i>MITRE ATT&amp;CK Heatmap
+              </span>
+              {% elif report.report_type == 'targeted_assets' %}
+              <span class="badge bg-warning text-dark">
+                <i class="bi bi-bullseye me-1"></i>Most Targeted Assets
+              </span>
+              {% elif report.report_type == 'threat_behaviour' %}
+              <span class="badge" style="background-color:#1e2d4a;">
+                <i class="bi bi-activity me-1"></i>Threat Behaviour
+              </span>
+              {% elif report.report_type == 'alert_response' %}
+              <span class="badge bg-success">
+                <i class="bi bi-clipboard2-check-fill me-1"></i>Alert Response
+              </span>
+              {% elif report.report_type == 'blocked_threats' %}
+              <span class="badge bg-dark">
+                <i class="bi bi-shield-lock-fill me-1"></i>Blocked Threats &amp; IoCs
+              </span>
+              {% else %}
+              <span class="badge bg-secondary">
+                <i class="bi bi-shield-check me-1"></i>Security Overview
+              </span>
+              {% endif %}
+            </td>
+            <td>
+              {% if report.status == 'done' %}
+                <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Done</span>
+              {% elif report.status == 'running' %}
+                <span class="badge bg-primary">
+                  <span class="spinner-border spinner-border-sm me-1" role="status"></span>Running
+                </span>
+              {% elif report.status == 'pending' %}
+                <span class="badge bg-secondary"><i class="bi bi-clock me-1"></i>Pending</span>
+              {% else %}
+                <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Failed</span>
+              {% endif %}
+            </td>
+            <td>{{ report.days_back }}d</td>
+            <td>
+              {% if report.severity_filter %}
+                {% set sevs = report.severity_filter | tojson | replace('"', '') | replace('[', '') | replace(']', '') %}
+                <span class="small text-muted">{{ report.severity_filter | replace('"', '') | replace('[', '') | replace(']', '') }}</span>
+              {% else %}
+                <span class="text-muted">all</span>
+              {% endif %}
+            </td>
+            <td class="text-muted small">{{ report.created_at.strftime('%Y-%m-%d %H:%M') }}</td>
+            <td class="text-muted small">
+              {% if report.completed_at %}
+              {{ report.completed_at.strftime('%Y-%m-%d %H:%M') }}
+              {% else %}—{% endif %}
+            </td>
+            <td>
+              <a href="/reports/{{ report.id }}" class="btn btn-sm btn-outline-secondary">
+                <i class="bi bi-eye me-1"></i>View
+              </a>
+              {% if report.status == 'done' %}
+              <a href="/reports/{{ report.id }}/download" class="btn btn-sm btn-tv1 ms-1">
+                <i class="bi bi-download me-1"></i>PDF
+              </a>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <div class="text-center py-5 text-muted">
+      <i class="bi bi-file-earmark fs-1 d-block mb-2"></i>
+      No reports have been generated yet.
+      <a href="/customers">Go to a customer</a> to run a report.
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

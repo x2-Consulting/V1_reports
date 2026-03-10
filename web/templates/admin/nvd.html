@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+
+{% block title %}NVD CVE Cache — TV1 Reporter{% endblock %}
+
+{% block head %}
+{% if sync_status.status in ("syncing_full", "syncing_incremental") %}
+<meta http-equiv="refresh" content="5" />
+{% endif %}
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+  <div class="col">
+    <h2 class="fw-bold mb-0">
+      <i class="bi bi-database-fill me-2 tv1-red"></i>NVD CVE Cache
+    </h2>
+    <p class="text-muted mb-0">Local cache of NIST NVD vulnerability data for faster report generation.</p>
+  </div>
+  <div class="col-auto d-flex gap-2">
+    <a href="/admin/settings" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-gear-fill me-1"></i>Settings
+    </a>
+    <a href="/admin/users" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-people-fill me-1"></i>Users
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Stats card -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold"><i class="bi bi-bar-chart-fill me-2 text-primary"></i>Cache Statistics</h5>
+      </div>
+      <div class="card-body">
+        <dl class="row mb-0">
+          <dt class="col-sm-5 text-muted">Total cached CVEs</dt>
+          <dd class="col-sm-7 fw-semibold">{{ sync_status.total_cached or "0" }}</dd>
+
+          <dt class="col-sm-5 text-muted">Last full sync</dt>
+          <dd class="col-sm-7">
+            {% if sync_status.last_full %}
+              <span class="text-success">{{ sync_status.last_full[:19].replace("T", " ") }} UTC</span>
+            {% else %}
+              <span class="text-muted fst-italic">Never</span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-5 text-muted">Last incremental sync</dt>
+          <dd class="col-sm-7">
+            {% if sync_status.last_incremental %}
+              <span class="text-success">{{ sync_status.last_incremental[:19].replace("T", " ") }} UTC</span>
+            {% else %}
+              <span class="text-muted fst-italic">Never</span>
+            {% endif %}
+          </dd>
+
+          <dt class="col-sm-5 text-muted">Status</dt>
+          <dd class="col-sm-7">
+            {% if sync_status.status == "idle" %}
+              <span class="badge bg-success">Idle</span>
+            {% elif sync_status.status in ("syncing_full", "syncing_incremental") %}
+              <span class="badge bg-primary">
+                <span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>
+                {% if sync_status.status == "syncing_full" %}Full sync in progress{% else %}Incremental sync in progress{% endif %}
+              </span>
+            {% elif sync_status.status == "failed" %}
+              <span class="badge bg-danger">Failed</span>
+            {% else %}
+              <span class="badge bg-secondary">{{ sync_status.status }}</span>
+            {% endif %}
+          </dd>
+
+          {% if sync_status.status in ("syncing_full", "syncing_incremental") and sync_status.progress %}
+          <dt class="col-sm-5 text-muted">Progress</dt>
+          <dd class="col-sm-7 fw-semibold font-monospace">{{ sync_status.progress }}</dd>
+          {% endif %}
+
+          {% if sync_status.status == "failed" and sync_status.last_error %}
+          <dt class="col-sm-5 text-muted text-danger">Last error</dt>
+          <dd class="col-sm-7 text-danger small">{{ sync_status.last_error }}</dd>
+          {% endif %}
+        </dl>
+      </div>
+    </div>
+  </div>
+
+  <!-- Action card -->
+  <div class="col-lg-6">
+    <div class="card border-0 shadow-sm h-100">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold"><i class="bi bi-arrow-repeat me-2 text-primary"></i>Sync Actions</h5>
+      </div>
+      <div class="card-body d-flex flex-column gap-4">
+
+        <!-- Full sync -->
+        <div>
+          <h6 class="fw-semibold">Full Sync</h6>
+          <p class="text-muted small mb-2">
+            Downloads all ~260k CVEs from NIST NVD and populates the local cache.
+            <strong class="text-warning">This takes 3–5 minutes</strong> and makes
+            approximately 130 API requests.
+          </p>
+          <form method="post" action="/admin/nvd/sync-full">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <button type="submit" class="btn btn-warning btn-sm"
+              {% if sync_status.status in ("syncing_full", "syncing_incremental") %}disabled{% endif %}
+              onclick="return confirm('This downloads ~260k CVEs and takes 3-5 minutes. Continue?')">
+              <i class="bi bi-cloud-download-fill me-1"></i>Full Sync
+            </button>
+          </form>
+        </div>
+
+        <hr class="my-0" />
+
+        <!-- Incremental sync -->
+        <div>
+          <h6 class="fw-semibold">Sync Recent (7 days)</h6>
+          <p class="text-muted small mb-2">
+            Downloads only CVEs added or modified in the last 7 days. Run this daily
+            to keep the cache current without a full re-download.
+          </p>
+          <form method="post" action="/admin/nvd/sync-recent">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+            <button type="submit" class="btn btn-primary btn-sm"
+              {% if sync_status.status in ("syncing_full", "syncing_incremental") %}disabled{% endif %}>
+              <i class="bi bi-arrow-clockwise me-1"></i>Sync Recent (7 days)
+            </button>
+          </form>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- How it works card -->
+  <div class="col-12">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold"><i class="bi bi-info-circle-fill me-2 text-info"></i>How the Cache Works</h5>
+      </div>
+      <div class="card-body">
+        <ul class="mb-0">
+          <li class="mb-2">
+            When a report is generated, the NVD enrichment step checks the <strong>local cache first</strong>.
+            If a CVE is found and was cached within the last 30 days, the local data is used immediately
+            with no outbound API call.
+          </li>
+          <li class="mb-2">
+            If a CVE is <strong>not in the cache</strong> (or is stale), the live NVD API is called,
+            and the result is stored in the cache for future use.
+          </li>
+          <li class="mb-2">
+            <strong>Full sync</strong> pre-populates the entire database (~260k CVEs). After a full sync,
+            nearly all report generation runs entirely offline.
+          </li>
+          <li>
+            <strong>Incremental sync</strong> keeps the cache current by pulling only recently modified CVEs.
+            Run it daily or weekly via a scheduled task.
+          </li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}

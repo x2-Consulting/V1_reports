@@ -1,0 +1,236 @@
+{% extends "base.html" %}
+
+{% block title %}CSV Patch Report — TV1 Reporter{% endblock %}
+
+{% block content %}
+<div class="row mb-4 align-items-center">
+  <div class="col">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/reports">Reports</a></li>
+        <li class="breadcrumb-item active">CSV Patch Upload</li>
+      </ol>
+    </nav>
+    <h2 class="fw-bold mb-0">
+      <i class="bi bi-filetype-csv me-2 tv1-red"></i>CSV Patch Remediation Report
+    </h2>
+    <p class="text-muted mb-0">
+      Upload a vulnerability CSV export to generate a patch-grouped remediation report.
+      Patches are ordered by the number of CVEs they fix — highest impact first.
+    </p>
+  </div>
+  <div class="col-auto pt-4">
+    <a href="/reports" class="btn btn-outline-secondary btn-sm">
+      <i class="bi bi-arrow-left me-1"></i>Back to Reports
+    </a>
+  </div>
+</div>
+
+<div class="row g-4">
+
+  <!-- Upload form -->
+  <div class="col-lg-5">
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold">
+          <i class="bi bi-upload me-2 tv1-red"></i>Upload &amp; Generate
+        </h5>
+      </div>
+      <div class="card-body p-3">
+        <form action="/reports/upload-csv" method="post" enctype="multipart/form-data">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+          <div class="mb-3">
+            <label for="customer_name" class="form-label small fw-semibold mb-1">
+              Customer Name <span class="text-danger">*</span>
+            </label>
+            <input type="text" class="form-control form-control-sm" id="customer_name"
+                   name="customer_name" list="customer_suggestions"
+                   placeholder="Type or select a customer name" required />
+            <datalist id="customer_suggestions">
+              {% for c in customers %}
+              <option value="{{ c.name }}">
+              {% endfor %}
+            </datalist>
+            <div class="form-text">Type a name or pick an existing customer from the list.</div>
+          </div>
+
+          <div class="mb-3">
+            <label for="csv_file" class="form-label small fw-semibold mb-1">
+              Vulnerability CSV File <span class="text-danger">*</span>
+            </label>
+            <input type="file" class="form-control form-control-sm" id="csv_file"
+                   name="csv_file" accept=".csv,text/csv" required />
+            <div class="form-text">
+              CSV exported from Trend Vision One or any vulnerability scanner.
+              Max ~50 MB.
+            </div>
+          </div>
+
+          <!-- NVD enrichment option -->
+          {% if nvd_configured %}
+          <div class="mb-3 p-3 rounded" style="background:#f0f4ff;border:1px solid #c8d8f8;">
+            <div class="form-check">
+              <input class="form-check-input" type="checkbox" name="enrich_nvd"
+                     value="1" id="enrich_nvd" checked />
+              <label class="form-check-label fw-semibold small" for="enrich_nvd">
+                <i class="bi bi-database-fill-check me-1 text-primary"></i>Enrich with NIST NVD data
+              </label>
+            </div>
+            <div class="text-muted small mt-1" style="padding-left:1.5rem;">
+              Looks up each CVE in the NIST National Vulnerability Database to add
+              official descriptions, validated CVSS scores, CWE weakness IDs, and
+              authoritative patch reference URLs. Adds processing time proportional
+              to the number of unique CVEs (~1–2s per CVE).
+            </div>
+          </div>
+          {% else %}
+          <div class="mb-3 p-3 rounded text-muted small" style="background:#f8f8f8;border:1px solid #e0e0e0;">
+            <i class="bi bi-database-slash me-1"></i>
+            <b>NIST NVD enrichment unavailable</b> — add <code>NVD_API_KEY</code>
+            to <code>.env</code> to enable official CVE data lookup.
+          </div>
+          {% endif %}
+
+          <button type="submit" class="btn btn-tv1 w-100" id="submit_btn">
+            <i class="bi bi-file-earmark-pdf me-1"></i>Generate PDF Report
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <!-- Help / column reference -->
+  <div class="col-lg-7">
+    <div class="card border-0 shadow-sm mb-4">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold">
+          <i class="bi bi-info-circle me-2 tv1-red"></i>Expected CSV Columns
+        </h5>
+      </div>
+      <div class="card-body p-0">
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead class="table-light">
+              <tr>
+                <th class="ps-3">Field</th>
+                <th>Accepted Header Names</th>
+                <th>Required?</th>
+              </tr>
+            </thead>
+            <tbody class="small">
+              <tr>
+                <td class="ps-3 fw-semibold">CVE ID</td>
+                <td class="text-muted">CVE ID, CVE, Vulnerability ID</td>
+                <td><span class="badge bg-danger">Yes</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Hostname / Asset</td>
+                <td class="text-muted">Hostname, Host, Endpoint, Asset, Affected Endpoint, Computer Name</td>
+                <td><span class="badge bg-danger">Yes</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Severity</td>
+                <td class="text-muted">Severity, Risk Level, Risk</td>
+                <td><span class="badge bg-secondary">Recommended</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">CVSS Score</td>
+                <td class="text-muted">CVSS Score, CVSS, Risk Score, CVSS V3 Score</td>
+                <td><span class="badge bg-secondary">Recommended</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Description</td>
+                <td class="text-muted">Description, Summary, Vulnerability Name, Title</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">IP Address</td>
+                <td class="text-muted">IP Address, IP, IPAddress</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Vendor</td>
+                <td class="text-muted">Vendor, Vendor Name, Product Vendor</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Product Name</td>
+                <td class="text-muted">Product Name, Product, Software, Application</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Product Version</td>
+                <td class="text-muted">Product Version, Version, Software Version</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">KB Article ID</td>
+                <td class="text-muted">KB Article ID, KB Article, KB, Microsoft KB</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Patch ID</td>
+                <td class="text-muted">Patch ID, Fix ID</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Advisory ID</td>
+                <td class="text-muted">Advisory ID, Vendor Advisory, Security Advisory</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+              <tr>
+                <td class="ps-3 fw-semibold">Reference URL</td>
+                <td class="text-muted">Reference URL, Patch URL, URL, Advisory URL</td>
+                <td><span class="badge bg-success">Optional</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <div class="card border-0 shadow-sm">
+      <div class="card-header bg-white border-bottom py-3">
+        <h5 class="mb-0 fw-semibold">
+          <i class="bi bi-sort-down me-2 tv1-red"></i>How Patches Are Prioritised
+        </h5>
+      </div>
+      <div class="card-body small text-muted">
+        <p class="mb-2">
+          The report groups every CVE in the CSV by the patch that fixes it, then
+          sorts patches so the most valuable actions appear first:
+        </p>
+        <ol class="mb-2 ps-3">
+          <li class="mb-1">
+            <b>Most CVEs fixed</b> — a single patch that resolves 20 vulnerabilities
+            appears before one that fixes 2.
+          </li>
+          <li class="mb-1">
+            <b>Highest CVSS score</b> as a tiebreaker within the same CVE count.
+          </li>
+        </ol>
+        <p class="mb-0">
+          Patch grouping priority: Microsoft KB article → Vendor Patch ID →
+          Security Advisory → Vendor + Product + Version → ungrouped.
+        </p>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const form = document.querySelector('form');
+  const btn = document.getElementById('submit_btn');
+  form.addEventListener('submit', function() {
+    // Small delay so the browser has collected the form data before we disable
+    setTimeout(function() {
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Generating PDF…';
+    }, 50);
+  });
+</script>
+{% endblock %}

@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}{{ form_title }} — TV1 Reporter{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/customers">Customers</a></li>
+        {% if customer %}
+        <li class="breadcrumb-item">
+          <a href="/customers/{{ customer.id }}">{{ customer.name }}</a>
+        </li>
+        {% endif %}
+        <li class="breadcrumb-item active">{{ form_title }}</li>
+      </ol>
+    </nav>
+    <h2 class="fw-bold mb-0">
+      <i class="bi bi-{% if customer %}pencil{% else %}plus-circle{% endif %} me-2 tv1-red"></i>
+      {{ form_title }}
+    </h2>
+  </div>
+</div>
+
+<div class="row">
+  <div class="col-md-8 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+        <form action="{{ form_action }}" method="post" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+          <div class="mb-3">
+            <label for="name" class="form-label fw-semibold">
+              Organisation Name <span class="text-danger">*</span>
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              id="name"
+              name="name"
+              value="{{ customer.name if customer else '' }}"
+              required
+              placeholder="e.g. Acme Corporation"
+              maxlength="128"
+            />
+          </div>
+
+          <div class="mb-3">
+            <label for="description" class="form-label fw-semibold">Description</label>
+            <textarea
+              class="form-control"
+              id="description"
+              name="description"
+              rows="3"
+              placeholder="Optional notes about this customer"
+            >{{ customer.description if customer and customer.description else '' }}</textarea>
+          </div>
+
+          <div class="mb-4">
+            <label for="contact_email" class="form-label fw-semibold">Contact Email</label>
+            <input
+              type="email"
+              class="form-control"
+              id="contact_email"
+              name="contact_email"
+              value="{{ customer.contact_email if customer and customer.contact_email else '' }}"
+              placeholder="security@customer.com"
+            />
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-tv1 px-4">
+              <i class="bi bi-check-lg me-1"></i>
+              {% if customer %}Save Changes{% else %}Create Customer{% endif %}
+            </button>
+            <a href="{% if customer %}/customers/{{ customer.id }}{% else %}/customers{% endif %}"
+               class="btn btn-outline-secondary">
+              Cancel
+            </a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
