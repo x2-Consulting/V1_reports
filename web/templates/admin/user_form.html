@@ -60,6 +60,23 @@
           </div>
           {% endif %}
 
+          {% if current_user.is_superadmin and orgs is defined %}
+          <div class="mb-3">
+            <label for="organisation_id" class="form-label fw-semibold">Organisation</label>
+            <select class="form-select" id="organisation_id" name="organisation_id">
+              <option value="">— Unassigned —</option>
+              {% for org in orgs %}
+              <option value="{{ org.id }}"
+                {% if edit_user and edit_user.organisation_id == org.id %}selected
+                {% elif not edit_user and current_user.organisation_id == org.id %}selected
+                {% endif %}>
+                {{ org.name }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+          {% endif %}
+
           <div class="mb-4">
             <div class="form-check form-switch">
               <input class="form-check-input" type="checkbox" id="is_admin" name="is_admin"

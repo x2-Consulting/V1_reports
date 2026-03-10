@@ -16,7 +16,7 @@ _limiter = Limiter(key_func=get_remote_address)
 from audit import audit_log
 from database import get_db
 from deps import get_csrf_token, get_current_user, require_admin, validate_csrf_form
-from models import AppSetting, User
+from models import AppSetting, Organisation, User
 from security import generate_csrf_token, hash_password
 from settings_store import KNOWN_SETTINGS, delete_setting, get_setting, set_setting
 from templating import templates
@@ -76,8 +76,10 @@ async def user_list(
 async def user_new(
     request: Request,
     current_user: User = Depends(require_admin),
+    db: Session = Depends(get_db),
     csrf_token: str = Depends(get_csrf_token),
 ):
+    orgs = db.query(Organisation).order_by(Organisation.name).all() if current_user.is_superadmin else None
     response = templates.TemplateResponse(
         "admin/user_form.html",
         {
@@ -85,6 +87,7 @@ async def user_new(
             "current_user": current_user,
             "csrf_token": csrf_token,
             "edit_user": None,
+            "orgs": orgs,
         },
     )
     _set_csrf_cookie(response, csrf_token)
@@ -101,6 +104,7 @@ async def user_create(
     email: str = Form(...),
     password: str = Form(...),
     is_admin: str = Form(default=""),
+    organisation_id: str = Form(default=""),
     csrf_token_form: str = Form(alias="csrf_token"),
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -155,13 +159,18 @@ async def user_create(
         _set_csrf_cookie(response, csrf_token)
         return response
 
+    if current_user.is_superadmin and organisation_id:
+        assigned_org_id = int(organisation_id)
+    else:
+        assigned_org_id = current_user.organisation_id
+
     user = User(
         username=username.strip(),
         email=email.strip(),
         hashed_password=hash_password(password),
         is_admin=bool(is_admin),
         is_active=True,
-        organisation_id=current_user.organisation_id,
+        organisation_id=assigned_org_id,
     )
     db.add(user)
     db.commit()
@@ -190,6 +199,7 @@ async def user_edit_form(
     if not current_user.is_superadmin and edit_user.organisation_id != current_user.organisation_id:
         raise HTTPException(status_code=404, detail="User not found")
 
+    orgs = db.query(Organisation).order_by(Organisation.name).all() if current_user.is_superadmin else None
     response = templates.TemplateResponse(
         "admin/user_form.html",
         {
@@ -197,6 +207,7 @@ async def user_edit_form(
             "current_user": current_user,
             "csrf_token": csrf_token,
             "edit_user": edit_user,
+            "orgs": orgs,
         },
     )
     _set_csrf_cookie(response, csrf_token)
@@ -211,6 +222,7 @@ async def user_update(
     request: Request,
     email: str = Form(...),
     is_admin: str = Form(default=""),
+    organisation_id: str = Form(default=""),
     csrf_token_form: str = Form(alias="csrf_token"),
     current_user: User = Depends(require_admin),
     db: Session = Depends(get_db),
@@ -250,10 +262,12 @@ async def user_update(
 
     edit_user.email = email.strip()
     edit_user.is_admin = new_is_admin
+    if current_user.is_superadmin:
+        edit_user.organisation_id = int(organisation_id) if organisation_id else None
     db.commit()
     audit_log(db, request, actor=current_user.username, event="user.update",
               target=f"user:{edit_user.username}",
-              detail=f"is_admin={new_is_admin}")
+              detail=f"is_admin={new_is_admin}, org_id={edit_user.organisation_id}")
 
     redirect = RedirectResponse(url="/admin/users", status_code=302)
     _flash(redirect, f"User '{edit_user.username}' updated.", "success")
