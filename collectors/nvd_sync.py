@@ -228,8 +228,8 @@ def sync_incremental(api_key: str | None = None, days: int = 7) -> None:
     now = datetime.utcnow()
     start = now - timedelta(days=days)
 
-    # NVD date format: "2024-01-01T00:00:00.000 UTC+00:00"
-    fmt = "%Y-%m-%dT%H:%M:%S.000 UTC+00:00"
+    # NVD API requires ISO 8601 format: "2024-01-01T00:00:00.000+00:00"
+    fmt = "%Y-%m-%dT%H:%M:%S.000+00:00"
     extra_params = {
         "lastModStartDate": start.strftime(fmt),
         "lastModEndDate": now.strftime(fmt),
