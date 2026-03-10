@@ -70,29 +70,36 @@ CONTENT_W = PAGE_W - 4 * cm   # usable width
 
 def _styles() -> dict[str, ParagraphStyle]:
     base = getSampleStyleSheet()
+    BODY_COLOR = colors.HexColor("#1A1A2E")
     return {
         "cover_title": ParagraphStyle(
             "CoverTitle", parent=base["Title"],
-            fontSize=24, textColor=WHITE, alignment=TA_CENTER, spaceAfter=4,
+            fontSize=26, textColor=WHITE, alignment=TA_CENTER, spaceAfter=4,
+            leading=32,
         ),
         "cover_sub": ParagraphStyle(
             "CoverSub", parent=base["Normal"],
-            fontSize=11, textColor=colors.HexColor("#BBCCDD"),
+            fontSize=12, textColor=colors.HexColor("#BBCCDD"),
             alignment=TA_CENTER, spaceAfter=2,
+        ),
+        "cover_meta": ParagraphStyle(
+            "CoverMeta", parent=base["Normal"],
+            fontSize=10, textColor=colors.HexColor("#BBCCDD"),
+            alignment=TA_CENTER, spaceAfter=4,
         ),
         "section": ParagraphStyle(
             "Section", parent=base["Heading1"],
             fontSize=13, textColor=TV1_RED,
-            spaceBefore=14, spaceAfter=6,
+            spaceBefore=16, spaceAfter=6, leading=18,
         ),
         "patch_title": ParagraphStyle(
             "PatchTitle", parent=base["Normal"],
-            fontSize=10, textColor=TV1_NAVY,
-            fontName="Helvetica-Bold", spaceAfter=2,
+            fontSize=9.5, textColor=TV1_NAVY,
+            fontName="Helvetica-Bold", spaceAfter=3, spaceBefore=4,
         ),
         "body": ParagraphStyle(
             "Body", parent=base["Normal"],
-            fontSize=9, textColor=colors.HexColor("#2C2C2C"), leading=13,
+            fontSize=9, textColor=BODY_COLOR, leading=13,
         ),
         "small": ParagraphStyle(
             "Small", parent=base["Normal"],
@@ -100,8 +107,13 @@ def _styles() -> dict[str, ParagraphStyle]:
         ),
         "cell": ParagraphStyle(
             "Cell", parent=base["Normal"],
-            fontSize=8, textColor=colors.HexColor("#2C2C2C"),
+            fontSize=8, textColor=BODY_COLOR,
             leading=11, wordWrap="CJK",
+        ),
+        "cell_desc": ParagraphStyle(
+            "CellDesc", parent=base["Normal"],
+            fontSize=7.5, textColor=BODY_COLOR,
+            leading=10.5, wordWrap="CJK",
         ),
         "caption": ParagraphStyle(
             "Caption", parent=base["Normal"],
@@ -116,7 +128,7 @@ def _styles() -> dict[str, ParagraphStyle]:
 
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
-def _t(value: Any, max_len: int = 60) -> str:
+def _t(value: Any, max_len: int = 80) -> str:
     s = str(value) if value is not None else "—"
     return s[:max_len] + "…" if len(s) > max_len else s
 
@@ -156,31 +168,50 @@ def _table_style(col_count: int, header_bg=TV1_NAVY) -> list:
 def _cover(sty: dict, customer_name: str, generated_at: str) -> list:
     elems = []
 
-    # Navy header band
-    header_data = [[Paragraph("Trend Vision One", sty["cover_title"])]]
+    # Full-width navy header block
+    header_data = [[
+        Paragraph("TREND VISION ONE", sty["cover_title"]),
+        "",
+    ]]
     header_tbl = Table(header_data, colWidths=[CONTENT_W])
     header_tbl.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, -1), TV1_NAVY),
-        ("TOPPADDING",    (0, 0), (-1, -1), 32),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
-        ("LEFTPADDING",   (0, 0), (-1, -1), 10),
+        ("TOPPADDING",    (0, 0), (-1, -1), 48),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
+        ("SPAN",          (0, 0), (-1, -1)),
     ]))
     elems.append(header_tbl)
 
-    # Red sub-band
+    # Red band — report type
     sub_data = [[Paragraph("Patch Remediation Report", sty["cover_sub"])]]
     sub_tbl = Table(sub_data, colWidths=[CONTENT_W])
     sub_tbl.setStyle(TableStyle([
         ("BACKGROUND",    (0, 0), (-1, -1), TV1_RED),
-        ("TOPPADDING",    (0, 0), (-1, -1), 10),
-        ("BOTTOMPADDING", (0, 0), (-1, -1), 10),
+        ("TOPPADDING",    (0, 0), (-1, -1), 12),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 12),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 0),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 0),
     ]))
     elems.append(sub_tbl)
-    elems.append(Spacer(1, 0.5 * cm))
 
-    elems.append(Paragraph(f"Customer: <b>{customer_name}</b>", sty["body"]))
-    elems.append(Paragraph(f"Generated: {generated_at}", sty["caption"]))
-    elems.append(Spacer(1, 0.5 * cm))
+    # Navy footer band — customer / date
+    meta_data = [[
+        Paragraph(f"<b>{customer_name}</b>", sty["cover_meta"]),
+        Paragraph(generated_at, sty["cover_meta"]),
+    ]]
+    meta_tbl = Table(meta_data, colWidths=[CONTENT_W * 0.6, CONTENT_W * 0.4])
+    meta_tbl.setStyle(TableStyle([
+        ("BACKGROUND",    (0, 0), (-1, -1), TV1_NAVY),
+        ("TOPPADDING",    (0, 0), (-1, -1), 14),
+        ("BOTTOMPADDING", (0, 0), (-1, -1), 14),
+        ("LEFTPADDING",   (0, 0), (-1, -1), 12),
+        ("RIGHTPADDING",  (0, 0), (-1, -1), 12),
+        ("ALIGN",         (1, 0), (1, 0),  "RIGHT"),
+    ]))
+    elems.append(meta_tbl)
+    elems.append(Spacer(1, 0.6 * cm))
     elems.append(HRFlowable(width="100%", thickness=1, color=TV1_RED))
     return elems
 
@@ -258,8 +289,9 @@ def _patch_index(sty: dict, groups: list) -> list:
             Paragraph(str(g["asset_count"]), sty["cell"]),
         ])
 
-    col_widths = [0.8*cm, 4.2*cm, 2.8*cm, 4*cm, 2.2*cm, 1.8*cm, 2.2*cm]
-    tbl = Table(rows, colWidths=col_widths, repeatRows=1)
+    # 7 cols on 17cm: # | Patch | Type | Vendor/Product | Priority | CVEs | Assets
+    col_widths = [0.7*cm, 4.5*cm, 2.6*cm, 4.0*cm, 2.2*cm, 1.6*cm, 1.4*cm]
+    tbl = Table(rows, colWidths=col_widths, repeatRows=1, splitByRow=True)
     tbl.setStyle(TableStyle(_table_style(7)))
     elems.append(tbl)
     return elems
@@ -335,12 +367,25 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
             url_tbl = None
 
         # ── CVE table ──
-        # Show CWE column when NVD enrichment is present; Exploit when TV1 CSV source
+        # Column layout adapts to available data fields.
+        # When both CWE and Exploit are present we keep the table to 5 cols
+        # (drop Description) — 6 cols is too cramped on A4.
         has_cwe     = any(v.get("cwe")     for v in g["cve_details"])
         has_exploit = any(v.get("exploit") for v in g["cve_details"])
 
+        # CVE-ID column: max 18 chars (e.g. "CVE-2024-123456" = 15)
+        # CVSS column:   max 4 chars ("10.0")
+        # Severity:      fixed badge width
+        ID_W    = 3.2 * cm
+        SEV_W   = 2.2 * cm
+        CVSS_W  = 1.4 * cm
+        CWE_W   = 2.4 * cm
+        EXP_W   = 3.6 * cm
+        DESC_W  = CONTENT_W - ID_W - SEV_W - CVSS_W  # remaining for description
+
         if has_cwe and has_exploit:
-            cve_headers = ["CVE ID", "Severity", "CVSS", "CWE", "Exploit Potential", "Description"]
+            # 5 cols: drop Description to keep it readable; show it separately
+            cve_headers = ["CVE ID", "Severity", "CVSS", "CWE", "Exploit Potential"]
             cve_rows = [cve_headers]
             for v in g["cve_details"]:
                 cve_rows.append([
@@ -348,10 +393,9 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
                     Paragraph(_t(v.get("cwe", "—"), 18), sty["cell"]),
-                    Paragraph(_t(v.get("exploit", "—"), 24), sty["cell"]),
-                    Paragraph(_t(v.get("description", "—"), 50), sty["cell"]),
+                    Paragraph(_t(v.get("exploit", "—"), 30), sty["cell"]),
                 ])
-            cve_col_widths = [2.8*cm, 2*cm, 1.5*cm, 2*cm, 3*cm, CONTENT_W - 11.3*cm]
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, CWE_W, CONTENT_W - ID_W - SEV_W - CVSS_W - CWE_W]
         elif has_cwe:
             cve_headers = ["CVE ID", "Severity", "CVSS", "CWE", "Description"]
             cve_rows = [cve_headers]
@@ -361,9 +405,9 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
                     Paragraph(_t(v.get("cwe", "—"), 18), sty["cell"]),
-                    Paragraph(_t(v.get("description", "—"), 60), sty["cell"]),
+                    Paragraph(_t(v.get("description", "—"), 120), sty["cell_desc"]),
                 ])
-            cve_col_widths = [2.8*cm, 2*cm, 1.5*cm, 2*cm, CONTENT_W - 8.3*cm]
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, CWE_W, CONTENT_W - ID_W - SEV_W - CVSS_W - CWE_W]
         elif has_exploit:
             cve_headers = ["CVE ID", "Severity", "CVSS", "Exploit Potential", "Description"]
             cve_rows = [cve_headers]
@@ -372,10 +416,10 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
                     Paragraph(_t(v.get("cveId", v.get("id", "—")), 20), sty["cell"]),
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
-                    Paragraph(_t(v.get("exploit", "—"), 28), sty["cell"]),
-                    Paragraph(_t(v.get("description", "—"), 55), sty["cell"]),
+                    Paragraph(_t(v.get("exploit", "—"), 30), sty["cell"]),
+                    Paragraph(_t(v.get("description", "—"), 120), sty["cell_desc"]),
                 ])
-            cve_col_widths = [2.8*cm, 2*cm, 1.5*cm, 3.5*cm, CONTENT_W - 9.8*cm]
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, EXP_W, CONTENT_W - ID_W - SEV_W - CVSS_W - EXP_W]
         else:
             cve_headers = ["CVE ID", "Severity", "CVSS", "Description"]
             cve_rows = [cve_headers]
@@ -384,11 +428,14 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
                     Paragraph(_t(v.get("cveId", v.get("id", "—")), 20), sty["cell"]),
                     _severity_badge(v.get("severity", "unknown"), sty),
                     Paragraph(str(v.get("cvssScore", v.get("riskScore", "—"))), sty["cell"]),
-                    Paragraph(_t(v.get("description", "—"), 70), sty["cell"]),
+                    Paragraph(_t(v.get("description", "—"), 160), sty["cell_desc"]),
                 ])
-            cve_col_widths = [2.8*cm, 2*cm, 1.5*cm, CONTENT_W - 6.3*cm]
+            cve_col_widths = [ID_W, SEV_W, CVSS_W, DESC_W]
 
-        cve_tbl = Table(cve_rows, colWidths=cve_col_widths, repeatRows=1)
+        cve_tbl = Table(
+            cve_rows, colWidths=cve_col_widths, repeatRows=1,
+            splitByRow=True,
+        )
         cve_tbl.setStyle(TableStyle(_table_style(len(cve_rows[0]), header_bg=TV1_NAVY2)))
 
         # ── Affected assets table ──
@@ -398,60 +445,64 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
         has_lastseen = any(isinstance(d, dict) and d.get("last_seen") for d in g["affected_asset_details"])
 
         if has_os or has_lastuser:
-            asset_header = ["Device", "IP Address", "OS", "Last User", "Last Detected"]
+            asset_header = ["Device", "IP Address", "OS / Application", "Last User", "Last Detected"]
             asset_rows = [asset_header]
             for detail in g["affected_asset_details"]:
                 if isinstance(detail, dict):
                     asset_rows.append([
-                        Paragraph(_t(detail.get("hostname", "—"), 28), sty["cell"]),
+                        Paragraph(_t(detail.get("hostname", "—"), 32), sty["cell"]),
                         Paragraph(_t(detail.get("ip", "—"), 18), sty["cell"]),
-                        Paragraph(_t(detail.get("os", "—"), 22), sty["cell"]),
-                        Paragraph(_t(detail.get("last_user", "—"), 22), sty["cell"]),
-                        Paragraph(_t(detail.get("last_seen", "—"), 20), sty["cell"]),
+                        Paragraph(_t(detail.get("os", "—"), 30), sty["cell_desc"]),
+                        Paragraph(_t(detail.get("last_user", "—"), 24), sty["cell"]),
+                        Paragraph(_t(detail.get("last_seen", "—"), 22), sty["cell"]),
                     ])
                 else:
-                    asset_rows.append([Paragraph(_t(str(detail), 28), sty["cell"])]
+                    asset_rows.append([Paragraph(_t(str(detail), 32), sty["cell"])]
                                       + [Paragraph("—", sty["cell"])] * 4)
-            asset_col_widths = [4*cm, 3*cm, 3.5*cm, 3.5*cm, CONTENT_W - 14*cm]
-            asset_tbl = Table(asset_rows, colWidths=asset_col_widths, repeatRows=1)
+            # 5 cols on 17cm: Device 4.2 | IP 2.8 | OS 4.5 | User 3.0 | Date 2.5
+            asset_col_widths = [4.2*cm, 2.8*cm, 4.5*cm, 3.0*cm, CONTENT_W - 14.5*cm]
+            asset_tbl = Table(asset_rows, colWidths=asset_col_widths, repeatRows=1, splitByRow=True)
             asset_tbl.setStyle(TableStyle(_table_style(5, header_bg=TV1_NAVY2)))
         else:
             asset_rows = [["Affected Asset", "IP Address", "Agent GUID"]]
             for detail in g["affected_asset_details"]:
                 if isinstance(detail, dict):
                     asset_rows.append([
-                        Paragraph(_t(detail.get("hostname", "—"), 30), sty["cell"]),
+                        Paragraph(_t(detail.get("hostname", "—"), 34), sty["cell"]),
                         Paragraph(_t(detail.get("ip", "—"), 18), sty["cell"]),
-                        Paragraph(_t(detail.get("agentGuid", "—"), 36), sty["cell"]),
+                        Paragraph(_t(detail.get("agentGuid", "—"), 40), sty["cell_desc"]),
                     ])
                 else:
                     asset_rows.append([
-                        Paragraph(_t(str(detail), 30), sty["cell"]),
+                        Paragraph(_t(str(detail), 34), sty["cell"]),
                         Paragraph("—", sty["cell"]),
                         Paragraph("—", sty["cell"]),
                     ])
-            asset_col_widths = [5.5*cm, 3.5*cm, CONTENT_W - 9*cm]
-            asset_tbl = Table(asset_rows, colWidths=asset_col_widths, repeatRows=1)
+            # 3 cols on 17cm: Device 5.5 | IP 3.5 | GUID rest
+            asset_col_widths = [5.5*cm, 3.5*cm, CONTENT_W - 9.0*cm]
+            asset_tbl = Table(asset_rows, colWidths=asset_col_widths, repeatRows=1, splitByRow=True)
             asset_tbl.setStyle(TableStyle(_table_style(3, header_bg=TV1_NAVY2)))
 
-        block = [
-            header_tbl,
-            meta_tbl,
-        ]
+        # Build block: keep the patch header + meta + first CVE header row together
+        # so a patch never starts at the very bottom of a page.
+        header_block = [header_tbl, meta_tbl]
         if url_tbl:
-            block.append(url_tbl)
-        block += [
-            Spacer(1, 0.2 * cm),
-            Paragraph("CVEs Remediated by This Patch", sty["patch_title"]),
-            cve_tbl,
+            header_block.append(url_tbl)
+        header_block += [
             Spacer(1, 0.25 * cm),
-            Paragraph("Affected Assets", sty["patch_title"]),
-            asset_tbl,
-            Spacer(1, 0.6 * cm),
+            Paragraph("CVEs Remediated by This Patch", sty["patch_title"]),
         ]
 
-        elems.append(KeepTogether(block[:4]))  # keep header + meta together at min
-        elems.extend(block[4:])
+        body_block = [
+            cve_tbl,
+            Spacer(1, 0.3 * cm),
+            Paragraph("Affected Assets", sty["patch_title"]),
+            asset_tbl,
+            Spacer(1, 0.8 * cm),
+        ]
+
+        elems.append(KeepTogether(header_block))
+        elems.extend(body_block)
 
     return elems
 

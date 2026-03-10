@@ -516,8 +516,21 @@ async def report_download(
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found on disk")
 
+    _type_labels = {
+        "security_overview": "Security_Overview",
+        "patch_remediation": "Patch_Remediation",
+        "executive_summary": "Executive_Summary",
+        "mitre_heatmap":     "MITRE_Heatmap",
+        "targeted_assets":   "Targeted_Assets",
+        "threat_behaviour":  "Threat_Behaviour",
+        "alert_response":    "Alert_Response",
+        "blocked_threats":   "Blocked_Threats",
+    }
+    type_label = _type_labels.get(report.report_type, report.report_type.replace(" ", "_"))
     customer_name = report.customer.name.replace(" ", "_") if report.customer else "report"
-    download_name = f"TV1_Report_{customer_name}_{report.created_at.strftime('%Y%m%d')}.pdf"
+    safe_customer = "".join(c if c.isalnum() or c in "-_" else "_" for c in customer_name)
+    date_str = report.created_at.strftime("%Y-%m-%d")
+    download_name = f"TV1_{type_label}_{safe_customer}_{date_str}.pdf"
 
     return FileResponse(
         path=str(pdf_path),
