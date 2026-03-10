@@ -385,6 +385,9 @@ chmod 600 "${ENV_FILE}"
 success ".env written (mode 600)."
 
 mkdir -p "${INSTALL_DIR}/output"
+chmod 750 "${INSTALL_DIR}/output"
+mkdir -p "${INSTALL_DIR}/logs"
+chmod 750 "${INSTALL_DIR}/logs"
 
 # =============================================================================
 #  SECTION 5 — Web server configuration

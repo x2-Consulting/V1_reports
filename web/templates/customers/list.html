@@ -65,7 +65,8 @@
                 <i class="bi bi-pencil me-1"></i>Edit
               </a>
               <form action="/customers/{{ customer.id }}/delete" method="post" class="d-inline ms-1"
-                    onsubmit="return confirm('Delete {{ customer.name }}? This will remove all associated keys and reports.')">
+                    data-confirm="Delete {{ customer.name | e }}? This will remove all associated keys and reports."
+                    onsubmit="return confirm(this.dataset.confirm)">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                 <button type="submit" class="btn btn-sm btn-outline-danger">
                   <i class="bi bi-trash me-1"></i>Delete

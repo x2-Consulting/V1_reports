@@ -7,8 +7,13 @@ import threading
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+_limiter = Limiter(key_func=get_remote_address)
+
+from audit import audit_log
 from database import get_db
 from deps import get_csrf_token, require_admin, validate_csrf_form
 from models import AppSetting, User
@@ -81,6 +86,7 @@ async def user_new(
 # ── Create user ───────────────────────────────────────────────────────────────
 
 @router.post("/users", response_class=HTMLResponse)
+@_limiter.limit("10/hour")
 async def user_create(
     request: Request,
     username: str = Form(...),
@@ -150,6 +156,9 @@ async def user_create(
     )
     db.add(user)
     db.commit()
+    audit_log(db, request, actor=current_user.username, event="user.create",
+              target=f"user:{user.username}",
+              detail=f"is_admin={user.is_admin}")
 
     redirect = RedirectResponse(url="/admin/users", status_code=302)
     _flash(redirect, f"User '{user.username}' created successfully.", "success")
@@ -229,6 +238,9 @@ async def user_update(
     edit_user.email = email.strip()
     edit_user.is_admin = new_is_admin
     db.commit()
+    audit_log(db, request, actor=current_user.username, event="user.update",
+              target=f"user:{edit_user.username}",
+              detail=f"is_admin={new_is_admin}")
 
     redirect = RedirectResponse(url="/admin/users", status_code=302)
     _flash(redirect, f"User '{edit_user.username}' updated.", "success")
@@ -260,6 +272,9 @@ async def user_toggle(
     db.commit()
 
     state = "activated" if edit_user.is_active else "deactivated"
+    audit_log(db, request, actor=current_user.username, event=f"user.{state}",
+              target=f"user:{edit_user.username}")
+
     redirect = RedirectResponse(url="/admin/users", status_code=302)
     _flash(redirect, f"User '{edit_user.username}' {state}.", "success")
     return redirect
@@ -282,13 +297,15 @@ async def user_reset_password(
     if not edit_user:
         raise HTTPException(status_code=404, detail="User not found")
 
-    if len(new_password) < 8:
+    if len(new_password) < 12:
         redirect = RedirectResponse(url="/admin/users", status_code=302)
-        _flash(redirect, "Password must be at least 8 characters.", "error")
+        _flash(redirect, "Password must be at least 12 characters.", "error")
         return redirect
 
     edit_user.hashed_password = hash_password(new_password)
     db.commit()
+    audit_log(db, request, actor=current_user.username, event="user.password_reset",
+              target=f"user:{edit_user.username}")
 
     redirect = RedirectResponse(url="/admin/users", status_code=302)
     _flash(redirect, f"Password reset for '{edit_user.username}'.", "success")
@@ -319,6 +336,8 @@ async def user_delete(
     username = edit_user.username
     db.delete(edit_user)
     db.commit()
+    audit_log(db, request, actor=current_user.username, event="user.delete",
+              target=f"user:{username}")
 
     redirect = RedirectResponse(url="/admin/users", status_code=302)
     _flash(redirect, f"User '{username}' deleted.", "warning")
@@ -369,6 +388,7 @@ async def settings_page(
 
 
 @router.post("/settings/{key}", response_class=HTMLResponse)
+@_limiter.limit("30/hour")
 async def setting_update(
     key: str,
     request: Request,
@@ -385,9 +405,13 @@ async def setting_update(
     if value.strip():
         set_setting(db, key, value.strip())
         _flash_msg = f"Setting '{key}' updated."
+        audit_log(db, request, actor=current_user.username, event="setting.update",
+                  target=f"setting:{key}")
     else:
         delete_setting(db, key)
         _flash_msg = f"Setting '{key}' cleared."
+        audit_log(db, request, actor=current_user.username, event="setting.clear",
+                  target=f"setting:{key}")
 
     redirect = RedirectResponse(url="/admin/settings", status_code=302)
     _flash(redirect, _flash_msg, "success")

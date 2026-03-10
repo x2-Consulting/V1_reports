@@ -419,6 +419,27 @@ async def csv_upload_run(
     if not raw:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
+    # Reject obvious non-CSV binaries by checking for null bytes and
+    # common binary magic numbers (PE, ELF, ZIP, PDF, etc.)
+    _BINARY_MAGIC = [
+        b"\x4d\x5a",           # PE/EXE
+        b"\x7fELF",            # ELF
+        b"\x50\x4b\x03\x04",  # ZIP / DOCX / XLSX
+        b"%PDF",               # PDF
+        b"\x89PNG",            # PNG
+        b"\xff\xd8\xff",       # JPEG
+    ]
+    sample = raw[:512]
+    if b"\x00" in sample or any(sample.startswith(m) for m in _BINARY_MAGIC):
+        raise HTTPException(status_code=400, detail="Uploaded file does not appear to be a CSV.")
+
+    # Enforce allowed MIME type from the browser's declaration
+    if csv_file.content_type and csv_file.content_type not in (
+        "text/csv", "text/plain", "application/csv",
+        "application/octet-stream",  # some browsers send this for .csv
+    ):
+        raise HTTPException(status_code=400, detail="Only CSV files are accepted.")
+
     # Pass db when NVD enrichment is requested so the parser can resolve proper
     # patch identifiers (KB articles, GHSA, RHSA, …) from NVD reference URLs
     # and enrich CVE details in a single pass.

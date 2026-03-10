@@ -10,6 +10,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+from audit import audit_log
 from database import get_db
 from deps import get_csrf_token, get_current_user_optional, validate_csrf_form
 from models import User
@@ -80,6 +81,8 @@ async def login_post(
 
     if user is None or not verify_password(password, user.hashed_password):
         error = "Invalid username or password."
+        audit_log(db, request, actor=username, event="auth.login_failed",
+                  detail="bad credentials or inactive account")
 
     if error:
         new_csrf = get_csrf_token(request)
@@ -91,6 +94,7 @@ async def login_post(
         return response
 
     # Successful login
+    audit_log(db, request, actor=user.username, event="auth.login_success")
     token = create_access_token(subject=user.username, is_admin=user.is_admin)
     redirect = RedirectResponse(url="/", status_code=302)
     redirect.set_cookie(

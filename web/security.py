@@ -10,9 +10,9 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
+import jwt as _pyjwt
 from cryptography.fernet import Fernet
 from dotenv import load_dotenv
-from jose import JWTError, jwt
 
 load_dotenv()
 
@@ -68,7 +68,7 @@ def create_access_token(subject: str, is_admin: bool = False) -> str:
         "exp": expire,
         "is_admin": is_admin,
     }
-    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+    return _pyjwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
 
 def decode_access_token(token: str) -> dict | None:
@@ -76,11 +76,11 @@ def decode_access_token(token: str) -> dict | None:
     Decode and validate a JWT.  Returns the payload dict or None on failure.
     """
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        payload = _pyjwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         if payload.get("sub") is None:
             return None
         return payload
-    except JWTError:
+    except _pyjwt.PyJWTError:
         return None
 
 

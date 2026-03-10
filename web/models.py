@@ -13,6 +13,7 @@ from sqlalchemy import (
     String,
     Text,
     func,
+    Index,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -153,3 +154,26 @@ class Report(Base):
 
     customer: Mapped["Customer"] = relationship("Customer", back_populates="reports")
     api_key: Mapped["CustomerApiKey"] = relationship("CustomerApiKey", back_populates="reports")
+
+
+class AuditLog(Base):
+    """
+    Immutable record of security-relevant events.
+    Written on admin actions, auth events, and access denials.
+    Never updated or deleted by the application.
+    """
+    __tablename__ = "audit_log"
+    __table_args__ = (
+        Index("ix_audit_log_actor", "actor"),
+        Index("ix_audit_log_event_time", "event_time"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    event_time: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    actor: Mapped[str] = mapped_column(String(64), nullable=False)   # username or "anonymous"
+    event: Mapped[str] = mapped_column(String(64), nullable=False)   # e.g. "user.create"
+    target: Mapped[str] = mapped_column(String(255), nullable=True)  # e.g. "user:alice"
+    detail: Mapped[str] = mapped_column(Text, nullable=True)         # extra context
+    ip_address: Mapped[str] = mapped_column(String(45), nullable=True)

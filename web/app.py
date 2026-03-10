@@ -2,6 +2,8 @@
 Trend Vision One Reporter — FastAPI application factory.
 """
 
+import logging
+import logging.handlers
 import os
 import sys
 from contextlib import asynccontextmanager
@@ -20,6 +22,22 @@ if _parent_dir not in sys.path:
 from dotenv import load_dotenv
 
 load_dotenv()
+
+# ── Logging setup ─────────────────────────────────────────────────────────────
+
+_LOG_DIR = Path(os.getenv("LOG_DIR", os.path.join(os.path.dirname(__file__), "..", "logs")))
+_LOG_DIR.mkdir(parents=True, exist_ok=True)
+
+_handler = logging.handlers.RotatingFileHandler(
+    _LOG_DIR / "tv1reporter.log",
+    maxBytes=10 * 1024 * 1024,  # 10 MB
+    backupCount=5,
+    encoding="utf-8",
+)
+_handler.setFormatter(logging.Formatter(
+    "%(asctime)s %(levelname)s %(name)s %(message)s"
+))
+logging.basicConfig(level=logging.INFO, handlers=[_handler, logging.StreamHandler()])
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse

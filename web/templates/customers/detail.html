@@ -29,7 +29,8 @@
       <i class="bi bi-pencil me-1"></i>Edit
     </a>
     <form action="/customers/{{ customer.id }}/delete" method="post" class="d-inline"
-          onsubmit="return confirm('Delete {{ customer.name }}? All API keys and reports will be removed permanently.')">
+          data-confirm="Delete {{ customer.name | e }}? All API keys and reports will be removed permanently."
+          onsubmit="return confirm(this.dataset.confirm)">
       <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
       <button type="submit" class="btn btn-outline-danger">
         <i class="bi bi-trash me-1"></i>Delete
@@ -69,7 +70,8 @@
               </span>
             </div>
             <form action="/customers/{{ customer.id }}/keys/{{ key.id }}/delete" method="post"
-                  onsubmit="return confirm('Remove API key \'{{ key.label }}\'?')">
+                  data-confirm="Remove API key {{ key.label | e }}?"
+                  onsubmit="return confirm(this.dataset.confirm)">
               <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
               <button type="submit" class="btn btn-sm btn-outline-danger">
                 <i class="bi bi-trash"></i>

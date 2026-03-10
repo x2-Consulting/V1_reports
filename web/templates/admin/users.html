@@ -80,7 +80,8 @@
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                   {% if user.is_active %}
                   <button type="submit" class="btn btn-sm btn-outline-warning" title="Deactivate user"
-                          onclick="return confirm('Deactivate {{ user.username }}? They will not be able to log in.')">
+                          data-confirm="Deactivate {{ user.username | e }}? They will not be able to log in."
+                          onclick="return confirm(this.dataset.confirm)">
                     <i class="bi bi-pause-fill"></i>
                   </button>
                   {% else %}
@@ -104,7 +105,8 @@
                 <!-- Delete -->
                 {% if user.id != current_user.id %}
                 <form action="/admin/users/{{ user.id }}/delete" method="post" class="d-inline"
-                      onsubmit="return confirm('Permanently delete user \'{{ user.username }}\'?')">
+                      data-confirm="Permanently delete user {{ user.username | e }}?"
+                      onsubmit="return confirm(this.dataset.confirm)">
                   <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
                   <button type="submit" class="btn btn-sm btn-outline-danger" title="Delete user">
                     <i class="bi bi-trash"></i>
