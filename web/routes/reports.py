@@ -417,26 +417,16 @@ async def csv_upload_run(
     if not raw:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
+    # Pass db when NVD enrichment is requested so the parser can resolve proper
+    # patch identifiers (KB articles, GHSA, RHSA, …) from NVD reference URLs
+    # and enrich CVE details in a single pass.
+    parse_db = db if enrich_nvd else None
     try:
-        patch_groups = parse_csv_to_patch_groups(raw)
+        patch_groups = parse_csv_to_patch_groups(raw, db=parse_db)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"CSV parse error: {exc}")
-
-    if enrich_nvd:
-        nvd_key = get_setting(db, "nvd_api_key") or os.getenv("NVD_API_KEY", "")
-        if nvd_key:
-            try:
-                import concurrent.futures
-                from collectors.nvd import apply_nvd_enrichment
-                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-                    future = ex.submit(apply_nvd_enrichment, patch_groups, nvd_key, db)
-                    future.result(timeout=90)  # cap at 90 seconds
-            except concurrent.futures.TimeoutError:
-                pass  # partial enrichment is fine — PDF generates with whatever was fetched
-            except Exception:
-                pass
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
