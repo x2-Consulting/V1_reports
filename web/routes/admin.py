@@ -15,7 +15,7 @@ _limiter = Limiter(key_func=get_remote_address)
 
 from audit import audit_log
 from database import get_db
-from deps import get_csrf_token, require_admin, validate_csrf_form
+from deps import get_csrf_token, get_current_user, require_admin, validate_csrf_form
 from models import AppSetting, User
 from security import generate_csrf_token, hash_password
 from settings_store import KNOWN_SETTINGS, delete_setting, get_setting, set_setting
@@ -48,7 +48,15 @@ async def user_list(
     db: Session = Depends(get_db),
     csrf_token: str = Depends(get_csrf_token),
 ):
-    users = db.query(User).order_by(User.username).all()
+    if current_user.is_superadmin:
+        users = db.query(User).order_by(User.username).all()
+    else:
+        users = (
+            db.query(User)
+            .filter(User.organisation_id == current_user.organisation_id)
+            .order_by(User.username)
+            .all()
+        )
     response = templates.TemplateResponse(
         "admin/users.html",
         {
@@ -153,6 +161,7 @@ async def user_create(
         hashed_password=hash_password(password),
         is_admin=bool(is_admin),
         is_active=True,
+        organisation_id=current_user.organisation_id,
     )
     db.add(user)
     db.commit()
@@ -177,6 +186,8 @@ async def user_edit_form(
 ):
     edit_user = db.query(User).filter(User.id == user_id).first()
     if not edit_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_superadmin and edit_user.organisation_id != current_user.organisation_id:
         raise HTTPException(status_code=404, detail="User not found")
 
     response = templates.TemplateResponse(
@@ -208,6 +219,8 @@ async def user_update(
 
     edit_user = db.query(User).filter(User.id == user_id).first()
     if not edit_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_superadmin and edit_user.organisation_id != current_user.organisation_id:
         raise HTTPException(status_code=404, detail="User not found")
 
     # Prevent removing admin from yourself
@@ -262,6 +275,8 @@ async def user_toggle(
     edit_user = db.query(User).filter(User.id == user_id).first()
     if not edit_user:
         raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_superadmin and edit_user.organisation_id != current_user.organisation_id:
+        raise HTTPException(status_code=404, detail="User not found")
 
     if edit_user.id == current_user.id:
         redirect = RedirectResponse(url="/admin/users", status_code=302)
@@ -296,6 +311,8 @@ async def user_reset_password(
     edit_user = db.query(User).filter(User.id == user_id).first()
     if not edit_user:
         raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_superadmin and edit_user.organisation_id != current_user.organisation_id:
+        raise HTTPException(status_code=404, detail="User not found")
 
     if len(new_password) < 12:
         redirect = RedirectResponse(url="/admin/users", status_code=302)
@@ -326,6 +343,8 @@ async def user_delete(
 
     edit_user = db.query(User).filter(User.id == user_id).first()
     if not edit_user:
+        raise HTTPException(status_code=404, detail="User not found")
+    if not current_user.is_superadmin and edit_user.organisation_id != current_user.organisation_id:
         raise HTTPException(status_code=404, detail="User not found")
 
     if edit_user.id == current_user.id:

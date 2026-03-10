@@ -24,6 +24,7 @@ def audit_log(
     event: str,
     target: str | None = None,
     detail: str | None = None,
+    organisation_id: int | None = None,
 ) -> None:
     """Write one audit record to the database and the application log."""
     ip = None
@@ -38,6 +39,7 @@ def audit_log(
         target=target,
         detail=detail,
         ip_address=ip,
+        organisation_id=organisation_id,
     )
     db.add(entry)
     db.commit()

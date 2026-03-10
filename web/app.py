@@ -56,8 +56,16 @@ from security import hash_password
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create all tables
+    # Create all tables (new tables only — does not alter existing)
     Base.metadata.create_all(bind=engine)
+
+    # Run schema migrations (ADD COLUMN for multi-tenancy, seed default org)
+    from migrations import run as run_migrations
+    _mig_db = SessionLocal()
+    try:
+        run_migrations(engine, _mig_db)
+    finally:
+        _mig_db.close()
 
     # Seed admin user if no users exist
     db = SessionLocal()
@@ -68,12 +76,17 @@ async def lifespan(app: FastAPI):
             admin_password = os.getenv("ADMIN_PASSWORD", "changeme123")
             admin_email = os.getenv("ADMIN_EMAIL", "admin@localhost")
 
+            from models import Organisation
+            default_org = db.query(Organisation).order_by(Organisation.id).first()
+
             admin = User(
                 username=admin_username,
                 email=admin_email,
                 hashed_password=hash_password(admin_password),
                 is_admin=True,
+                is_superadmin=True,
                 is_active=True,
+                organisation_id=default_org.id if default_org else None,
             )
             db.add(admin)
             db.commit()
@@ -202,12 +215,14 @@ from routes.dashboard import router as dashboard_router
 from routes.customers import router as customers_router
 from routes.reports import router as reports_router
 from routes.admin import router as admin_router
+from routes.superadmin import router as superadmin_router
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)
 app.include_router(customers_router)
 app.include_router(reports_router)
 app.include_router(admin_router)
+app.include_router(superadmin_router)
 
 
 # ── Global 307 redirect handler (login redirect) ─────────────────────────────

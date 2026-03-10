@@ -15,7 +15,15 @@ from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db
-from deps import get_csrf_token, get_current_user, validate_csrf_form
+from deps import (
+    assert_customer_access,
+    assert_report_access,
+    get_csrf_token,
+    get_current_user,
+    org_customer_filter,
+    org_report_filter,
+    validate_csrf_form,
+)
 from models import Customer, CustomerApiKey, Report, User
 from security import decrypt_api_key
 from settings_store import get_setting
@@ -331,9 +339,10 @@ async def report_run(
     """Create a Report row, kick off background generation, redirect to status page."""
     validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
 
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
+    customer = assert_customer_access(
+        db.query(Customer).filter(Customer.id == customer_id).first(),
+        current_user,
+    )
 
     key_record = db.query(CustomerApiKey).filter(
         CustomerApiKey.id == api_key_id,
@@ -380,7 +389,7 @@ async def csv_upload_form(
     db: Session = Depends(get_db),
     csrf_token: str = Depends(get_csrf_token),
 ):
-    customers = db.query(Customer).order_by(Customer.name).all()
+    customers = org_customer_filter(db, current_user).order_by(Customer.name).all()
     nvd_key = get_setting(db, "nvd_api_key") or os.getenv("NVD_API_KEY", "")
     response = templates.TemplateResponse(
         "reports/csv_upload.html",
@@ -484,9 +493,11 @@ async def report_detail(
     db: Session = Depends(get_db),
     csrf_token: str = Depends(get_csrf_token),
 ):
-    report = db.query(Report).filter(Report.id == report_id).first()
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
+    report = assert_report_access(
+        db.query(Report).filter(Report.id == report_id).first(),
+        current_user,
+        db,
+    )
 
     severity_list: list[str] = []
     if report.severity_filter:
@@ -519,9 +530,11 @@ async def report_download(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    report = db.query(Report).filter(Report.id == report_id).first()
-    if not report:
-        raise HTTPException(status_code=404, detail="Report not found")
+    report = assert_report_access(
+        db.query(Report).filter(Report.id == report_id).first(),
+        current_user,
+        db,
+    )
     if report.status != "done" or not report.filename:
         raise HTTPException(status_code=400, detail="Report is not ready for download")
 
@@ -565,7 +578,7 @@ async def report_list(
     csrf_token: str = Depends(get_csrf_token),
 ):
     reports = (
-        db.query(Report)
+        org_report_filter(db, current_user)
         .order_by(Report.created_at.desc())
         .limit(100)
         .all()

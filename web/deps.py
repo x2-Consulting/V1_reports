@@ -9,7 +9,7 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import User
+from models import Customer, Report, User
 from security import decode_access_token, generate_csrf_token, verify_csrf_token
 
 
@@ -46,8 +46,6 @@ def get_current_user(
     """Return the logged-in User or redirect to /login."""
     user = get_current_user_optional(request, db)
     if user is None:
-        # Raise an HTTPException that will be caught and turned into a redirect
-        # by the route; or use a redirect directly.
         raise HTTPException(
             status_code=status.HTTP_307_TEMPORARY_REDIRECT,
             headers={"Location": "/login"},
@@ -58,36 +56,72 @@ def get_current_user(
 def require_admin(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    """Ensure the current user is an admin."""
-    if not current_user.is_admin:
+    """Ensure the current user is an org admin or superadmin."""
+    if not (current_user.is_admin or current_user.is_superadmin):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
     return current_user
+
+
+def require_superadmin(
+    current_user: User = Depends(get_current_user),
+) -> User:
+    """Ensure the current user is a platform superadmin."""
+    if not current_user.is_superadmin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Superadmin access required")
+    return current_user
+
+
+# ── Organisation-scoped query helpers ────────────────────────────────────────
+
+def org_customer_filter(db: Session, current_user: User):
+    """Return a Customer query scoped to the user's organisation."""
+    q = db.query(Customer)
+    if not current_user.is_superadmin:
+        q = q.filter(Customer.organisation_id == current_user.organisation_id)
+    return q
+
+
+def org_report_filter(db: Session, current_user: User):
+    """Return a Report query scoped to the user's organisation via Customer."""
+    q = db.query(Report)
+    if not current_user.is_superadmin:
+        q = (
+            q.join(Customer, Report.customer_id == Customer.id)
+            .filter(Customer.organisation_id == current_user.organisation_id)
+        )
+    return q
+
+
+def assert_customer_access(customer: Customer | None, current_user: User) -> Customer:
+    """Raise 404 if customer is missing or belongs to a different org."""
+    if not customer:
+        raise HTTPException(status_code=404, detail="Customer not found")
+    if not current_user.is_superadmin:
+        if customer.organisation_id != current_user.organisation_id:
+            raise HTTPException(status_code=404, detail="Customer not found")
+    return customer
+
+
+def assert_report_access(report: Report | None, current_user: User, db: Session) -> Report:
+    """Raise 404 if report is missing or belongs to a different org."""
+    if not report:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if not current_user.is_superadmin:
+        customer = db.query(Customer).filter(Customer.id == report.customer_id).first()
+        if not customer or customer.organisation_id != current_user.organisation_id:
+            raise HTTPException(status_code=404, detail="Report not found")
+    return report
 
 
 # ── CSRF ─────────────────────────────────────────────────────────────────────
 
 def get_csrf_token(request: Request) -> str:
-    """
-    Return the CSRF token from the cookie, generating a new one if absent.
-    The token is attached to request.state so the response can set the cookie.
-    """
+    """Return the CSRF token from the cookie, generating a new one if absent."""
     token = request.cookies.get("csrf_token")
     if not token:
         token = generate_csrf_token()
     request.state.csrf_token = token
     return token
-
-
-def validate_csrf(request: Request) -> None:
-    """
-    Dependency that validates the CSRF double-submit on POST/PUT/DELETE.
-    Must be called only from form-handling routes.
-    """
-    # This is called inside route handlers after form data is parsed,
-    # so we use a synchronous approach: read from request.state set by middleware
-    # or from the cookie. Actual validation happens in each route handler
-    # via validate_csrf_form() helper below.
-    pass
 
 
 def validate_csrf_form(form_token: str | None, cookie_token: str | None) -> None:

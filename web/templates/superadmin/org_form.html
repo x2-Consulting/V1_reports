@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}{{ form_title }} — TV1 Reporter{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+  <div class="col-lg-6">
+    <div class="card shadow-sm">
+      <div class="card-header">
+        <h5 class="mb-0"><i class="bi bi-building me-2"></i>{{ form_title }}</h5>
+      </div>
+      <div class="card-body">
+        {% if error %}
+        <div class="alert alert-danger">{{ error }}</div>
+        {% endif %}
+
+        <form action="{{ form_action }}" method="post">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+          <div class="mb-3">
+            <label for="name" class="form-label">Organisation Name <span class="text-danger">*</span></label>
+            <input
+              type="text"
+              id="name"
+              name="name"
+              class="form-control"
+              required
+              maxlength="200"
+              value="{{ form.name if form is defined else (org.name if org else '') }}"
+            />
+          </div>
+
+          <div class="mb-3">
+            <label for="slug" class="form-label">Slug <span class="text-danger">*</span></label>
+            <input
+              type="text"
+              id="slug"
+              name="slug"
+              class="form-control"
+              required
+              maxlength="100"
+              pattern="[a-z0-9\-]+"
+              title="Lowercase letters, numbers and hyphens only"
+              value="{{ form.slug if form is defined else (org.slug if org else '') }}"
+            />
+            <div class="form-text">Lowercase letters, numbers and hyphens only. Used in URLs.</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-primary">
+              <i class="bi bi-check-circle me-1"></i>Save
+            </button>
+            <a href="/superadmin/orgs{% if org %}/{{ org.id }}{% endif %}" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

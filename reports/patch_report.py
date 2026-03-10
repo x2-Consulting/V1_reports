@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import os
 from datetime import datetime, timezone
+from html import escape as _html_escape
 from pathlib import Path
 from typing import Any
 
@@ -162,8 +163,11 @@ def _styles() -> dict[str, ParagraphStyle]:
 # ── Shared helpers ─────────────────────────────────────────────────────────────
 
 def _t(value: Any, max_len: int = 80) -> str:
+    """Truncate to max_len and HTML-escape for safe use inside ReportLab Paragraphs."""
     s = str(value) if value is not None else "—"
-    return s[:max_len] + "…" if len(s) > max_len else s
+    if len(s) > max_len:
+        s = s[:max_len] + "…"
+    return _html_escape(s)
 
 
 def _priority_badge(priority: str, sty: dict) -> Paragraph:
@@ -388,8 +392,8 @@ def _patch_detail_section(sty: dict, groups: list) -> list:
             product_str += f"  {g['product_version']}"
 
         meta_items = [
-            ("Vendor",   g["vendor"] or "—"),
-            ("Product",  product_str or "—"),
+            ("Vendor",   _html_escape(g["vendor"] or "—")),
+            ("Product",  _html_escape(product_str or "—")),
             ("CVEs",     str(g["cve_count"])),
             ("Assets",   str(g["asset_count"])),
             ("Worst CVSS", f"{g['worst_cvss']:.1f}"),
@@ -627,7 +631,7 @@ def _by_device_section(sty: dict, groups: list) -> list:
         dev_header_data = [[
             Paragraph(
                 f'<font color="white"><b>{_t(device_name, 50)}</b>'
-                f'  <font size="8">IP: {ip_str} · '
+                f'  <font size="8">IP: {_html_escape(ip_str)} · '
                 f'{len(patches)} patch action{"s" if len(patches) != 1 else ""} · '
                 f'{total_cves} CVE{"s" if total_cves != 1 else ""}</font></font>',
                 sty["body"],

@@ -1,17 +1,26 @@
 """
 Customer management routes: CRUD and API key management.
+All queries are scoped to the current user's organisation.
+Superadmins can see all organisations' customers.
 """
 
 import os
 
-from fastapi import APIRouter, Depends, Form, Request, HTTPException
+from fastapi import APIRouter, Depends, Form, HTTPException, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 _SECURE_COOKIES: bool = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
 
+from audit import audit_log
 from database import get_db
-from deps import get_csrf_token, get_current_user, validate_csrf_form
+from deps import (
+    assert_customer_access,
+    get_csrf_token,
+    get_current_user,
+    org_customer_filter,
+    validate_csrf_form,
+)
 from models import Customer, CustomerApiKey, User
 from security import encrypt_api_key
 from templating import templates
@@ -20,7 +29,6 @@ router = APIRouter(prefix="/customers")
 
 
 def _flash(response, message: str, category: str = "info") -> None:
-    import os
     from itsdangerous import URLSafeSerializer
     secret = os.getenv("SECRET_KEY")
     s = URLSafeSerializer(secret, salt="flash")
@@ -41,7 +49,7 @@ async def customer_list(
     db: Session = Depends(get_db),
     csrf_token: str = Depends(get_csrf_token),
 ):
-    customers = db.query(Customer).order_by(Customer.name).all()
+    customers = org_customer_filter(db, current_user).order_by(Customer.name).all()
     response = templates.TemplateResponse(
         "customers/list.html",
         {
@@ -97,6 +105,7 @@ async def customer_create(
         description=description.strip() or None,
         contact_email=contact_email.strip() or None,
         created_by_id=current_user.id,
+        organisation_id=current_user.organisation_id,
     )
     db.add(customer)
     db.commit()
@@ -117,9 +126,10 @@ async def customer_detail(
     db: Session = Depends(get_db),
     csrf_token: str = Depends(get_csrf_token),
 ):
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
+    customer = assert_customer_access(
+        db.query(Customer).filter(Customer.id == customer_id).first(),
+        current_user,
+    )
 
     api_keys = (
         db.query(CustomerApiKey)
@@ -154,9 +164,10 @@ async def customer_edit_form(
     db: Session = Depends(get_db),
     csrf_token: str = Depends(get_csrf_token),
 ):
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
+    customer = assert_customer_access(
+        db.query(Customer).filter(Customer.id == customer_id).first(),
+        current_user,
+    )
 
     response = templates.TemplateResponse(
         "customers/form.html",
@@ -188,9 +199,10 @@ async def customer_update(
 ):
     validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
 
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
+    customer = assert_customer_access(
+        db.query(Customer).filter(Customer.id == customer_id).first(),
+        current_user,
+    )
 
     customer.name = name.strip()
     customer.description = description.strip() or None
@@ -214,9 +226,10 @@ async def customer_delete(
 ):
     validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
 
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
+    customer = assert_customer_access(
+        db.query(Customer).filter(Customer.id == customer_id).first(),
+        current_user,
+    )
 
     name = customer.name
     db.delete(customer)
@@ -242,9 +255,10 @@ async def customer_add_key(
 ):
     validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
 
-    customer = db.query(Customer).filter(Customer.id == customer_id).first()
-    if not customer:
-        raise HTTPException(status_code=404, detail="Customer not found")
+    customer = assert_customer_access(
+        db.query(Customer).filter(Customer.id == customer_id).first(),
+        current_user,
+    )
 
     encrypted = encrypt_api_key(api_key.strip())
     key_record = CustomerApiKey(
@@ -275,11 +289,16 @@ async def customer_delete_key(
 ):
     validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
 
+    # Verify customer is accessible by this user first
+    assert_customer_access(
+        db.query(Customer).filter(Customer.id == customer_id).first(),
+        current_user,
+    )
+
     key_record = db.query(CustomerApiKey).filter(
         CustomerApiKey.id == key_id,
         CustomerApiKey.customer_id == customer_id,
     ).first()
-
     if not key_record:
         raise HTTPException(status_code=404, detail="API key not found")
 

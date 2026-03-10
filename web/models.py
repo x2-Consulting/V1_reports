@@ -24,6 +24,22 @@ def _utcnow() -> datetime:
     return datetime.now(tz=timezone.utc)
 
 
+class Organisation(Base):
+    """A tenant — one per business using the platform."""
+    __tablename__ = "organisations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    slug: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+
+    users: Mapped[list["User"]] = relationship("User", back_populates="organisation", lazy="select")
+    customers: Mapped[list["Customer"]] = relationship("Customer", back_populates="organisation", lazy="select")
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -32,11 +48,16 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    is_superadmin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    organisation_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("organisations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
 
+    organisation: Mapped["Organisation | None"] = relationship("Organisation", back_populates="users")
     customers: Mapped[list["Customer"]] = relationship(
         "Customer", back_populates="created_by", lazy="select"
     )
@@ -55,8 +76,12 @@ class Customer(Base):
     created_by_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
+    organisation_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("organisations.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
     created_by: Mapped["User"] = relationship("User", back_populates="customers")
+    organisation: Mapped["Organisation | None"] = relationship("Organisation", back_populates="customers")
     api_keys: Mapped[list["CustomerApiKey"]] = relationship(
         "CustomerApiKey", back_populates="customer", cascade="all, delete-orphan"
     )
@@ -177,3 +202,6 @@ class AuditLog(Base):
     target: Mapped[str] = mapped_column(String(255), nullable=True)  # e.g. "user:alice"
     detail: Mapped[str] = mapped_column(Text, nullable=True)         # extra context
     ip_address: Mapped[str] = mapped_column(String(45), nullable=True)
+    organisation_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("organisations.id", ondelete="SET NULL"), nullable=True, index=True
+    )
