@@ -21,14 +21,17 @@ router = APIRouter(prefix="/admin")
 
 def _flash(response, message: str, category: str = "info") -> None:
     from itsdangerous import URLSafeSerializer
-    secret = os.getenv("SECRET_KEY", "change-this-to-a-random-32-char-secret-key!!")
+    secret = os.getenv("SECRET_KEY")
     s = URLSafeSerializer(secret, salt="flash")
     response.set_cookie("flash", s.dumps({"message": message, "category": category}),
                         httponly=True, samesite="lax", max_age=60)
 
 
+_SECURE_COOKIES: bool = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
+
+
 def _set_csrf_cookie(response, token: str) -> None:
-    response.set_cookie("csrf_token", token, httponly=False, samesite="lax", secure=False)
+    response.set_cookie("csrf_token", token, httponly=False, samesite="lax", secure=_SECURE_COOKIES)
 
 
 # ── User list ─────────────────────────────────────────────────────────────────
@@ -122,7 +125,7 @@ async def user_create(
         _set_csrf_cookie(response, csrf_token)
         return response
 
-    if len(password) < 8:
+    if len(password) < 12:
         csrf_token = generate_csrf_token()
         response = templates.TemplateResponse(
             "admin/user_form.html",
@@ -131,7 +134,7 @@ async def user_create(
                 "current_user": current_user,
                 "csrf_token": csrf_token,
                 "edit_user": None,
-                "error": "Password must be at least 8 characters.",
+                "error": "Password must be at least 12 characters.",
                 "form": {"username": username, "email": email},
             },
         )

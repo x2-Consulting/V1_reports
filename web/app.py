@@ -80,6 +80,9 @@ limiter = Limiter(key_func=get_remote_address)
 
 MAX_UPLOAD_BYTES = 500 * 1024 * 1024  # 500 MB
 
+# True when running behind HTTPS (set in .env for production)
+HTTPS_ENABLED: bool = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
+
 app = FastAPI(
     title="Trend Vision One Reporter",
     description="Multi-customer security report management portal",
@@ -109,6 +112,31 @@ class _MaxBodyMiddleware(BaseHTTPMiddleware):
 
 app.add_middleware(_MaxBodyMiddleware)
 
+
+# Security headers on every response
+class _SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+        if HTTPS_ENABLED:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+            "style-src 'self' 'unsafe-inline' cdn.jsdelivr.net; "
+            "font-src 'self' cdn.jsdelivr.net; "
+            "img-src 'self' data:; "
+            "connect-src 'self';"
+        )
+        return response
+
+app.add_middleware(_SecurityHeadersMiddleware)
+
 # ── Static files ──────────────────────────────────────────────────────────────
 
 _web_dir = Path(__file__).resolve().parent
@@ -132,7 +160,7 @@ async def flash_middleware(request: Request, call_next):
     if flash_cookie:
         try:
             from itsdangerous import URLSafeSerializer, BadSignature
-            secret = os.getenv("SECRET_KEY", "change-this-to-a-random-32-char-secret-key!!")
+            secret = os.getenv("SECRET_KEY")
             s = URLSafeSerializer(secret, salt="flash")
             flash_data = s.loads(flash_cookie)
         except Exception:

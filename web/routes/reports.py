@@ -5,6 +5,8 @@ Report routes: trigger, status, download, list.
 import json
 import os
 import sys
+
+_SECURE_COOKIES: bool = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -26,14 +28,14 @@ OUTPUT_DIR = Path(os.getenv("REPORT_OUTPUT_DIR", "/home/xspader/V1/output"))
 
 def _flash(response, message: str, category: str = "info") -> None:
     from itsdangerous import URLSafeSerializer
-    secret = os.getenv("SECRET_KEY", "change-this-to-a-random-32-char-secret-key!!")
+    secret = os.getenv("SECRET_KEY")
     s = URLSafeSerializer(secret, salt="flash")
     encoded = s.dumps({"message": message, "category": category})
     response.set_cookie("flash", encoded, httponly=True, samesite="lax", max_age=60)
 
 
 def _set_csrf_cookie(response, token: str) -> None:
-    response.set_cookie("csrf_token", token, httponly=False, samesite="lax", secure=False)
+    response.set_cookie("csrf_token", token, httponly=False, samesite="lax", secure=_SECURE_COOKIES)
 
 
 # ── Background report execution ───────────────────────────────────────────────
@@ -79,9 +81,9 @@ def _run_report_background(report_id: int) -> None:
 
         try:
             plain_key = decrypt_api_key(key_record.encrypted_key)
-        except Exception as exc:
+        except Exception:
             report.status = "failed"
-            report.error_message = f"Failed to decrypt API key: {exc}"
+            report.error_message = "Failed to decrypt API key. Check that FERNET_KEY matches the key used when the API key was stored."
             db.commit()
             return
 
@@ -502,7 +504,10 @@ async def report_download(
     if report.status != "done" or not report.filename:
         raise HTTPException(status_code=400, detail="Report is not ready for download")
 
-    pdf_path = OUTPUT_DIR / report.filename
+    # Guard against path traversal — resolve and confirm it's inside OUTPUT_DIR
+    pdf_path = (OUTPUT_DIR / report.filename).resolve()
+    if not str(pdf_path).startswith(str(OUTPUT_DIR.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid report path")
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found on disk")
 

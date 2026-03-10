@@ -2,6 +2,8 @@
 Authentication routes: login, logout.
 """
 
+import os
+
 from fastapi import APIRouter, Depends, Form, Request, Response
 from fastapi.responses import HTMLResponse, RedirectResponse
 from slowapi import Limiter
@@ -18,13 +20,15 @@ from templating import templates
 router = APIRouter()
 limiter = Limiter(key_func=get_remote_address)
 
+_SECURE_COOKIES: bool = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
+
 
 def _set_flash(response: Response, message: str, category: str = "info") -> None:
     """Encode a flash message as a signed cookie."""
     import json
     from itsdangerous import URLSafeSerializer
     import os
-    secret = os.getenv("SECRET_KEY", "change-this-to-a-random-32-char-secret-key!!")
+    secret = os.getenv("SECRET_KEY")
     s = URLSafeSerializer(secret, salt="flash")
     encoded = s.dumps({"message": message, "category": category})
     response.set_cookie("flash", encoded, httponly=True, samesite="lax", max_age=60)
@@ -50,7 +54,7 @@ async def login_get(
         csrf_token,
         httponly=False,
         samesite="lax",
-        secure=False,
+        secure=_SECURE_COOKIES,
     )
     return response
 
@@ -83,7 +87,7 @@ async def login_post(
             "login.html",
             {"request": request, "error": error, "csrf_token": new_csrf},
         )
-        response.set_cookie("csrf_token", new_csrf, httponly=False, samesite="lax", secure=False)
+        response.set_cookie("csrf_token", new_csrf, httponly=False, samesite="lax", secure=_SECURE_COOKIES)
         return response
 
     # Successful login
@@ -94,8 +98,8 @@ async def login_post(
         token,
         httponly=True,
         samesite="lax",
-        secure=False,  # Set to True in production behind HTTPS
-        max_age=60 * 60 * 8,  # 8 hours
+        secure=_SECURE_COOKIES,
+        max_age=60 * 60 * 2,  # 2 hours (matches ACCESS_TOKEN_EXPIRE_MINUTES default)
     )
     _set_flash(redirect, f"Welcome back, {user.username}!", "success")
     return redirect

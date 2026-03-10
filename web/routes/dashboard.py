@@ -2,9 +2,12 @@
 Dashboard route — summary statistics and recent reports.
 """
 
+import os
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, Request
+
+_SECURE_COOKIES: bool = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
 from fastapi.responses import HTMLResponse
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -64,5 +67,5 @@ async def dashboard(
             "recent_reports": recent_reports,
         },
     )
-    response.set_cookie("csrf_token", csrf_token, httponly=False, samesite="lax", secure=False)
+    response.set_cookie("csrf_token", csrf_token, httponly=False, samesite="lax", secure=_SECURE_COOKIES)
     return response

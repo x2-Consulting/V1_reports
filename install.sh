@@ -187,6 +187,14 @@ prompt DB_PORT "Port"          "3306"
 prompt DB_NAME "Database name" "tv1reporter"
 prompt DB_USER "DB username"   "tv1reporter"
 prompt_password DB_PASS "Database password"
+
+# Validate DB_NAME and DB_USER — only alphanumeric + underscore allowed
+if ! [[ "$DB_NAME" =~ ^[a-zA-Z0-9_]+$ ]]; then
+    die "Database name '${DB_NAME}' contains invalid characters. Use only letters, digits, and underscores."
+fi
+if ! [[ "$DB_USER" =~ ^[a-zA-Z0-9_]+$ ]]; then
+    die "Database username '${DB_USER}' contains invalid characters. Use only letters, digits, and underscores."
+fi
 echo ""
 
 # ── Optional API keys ─────────────────────────────────────────────────────────
@@ -287,8 +295,8 @@ SQL
     success "Database and user created."
 fi
 
-# Verify connection
-if mysql -u "${DB_USER}" -p"${DB_PASS}" -h "${DB_HOST}" -P "${DB_PORT}" \
+# Verify connection — use MYSQL_PWD env var to avoid password in process list
+if MYSQL_PWD="${DB_PASS}" mysql -u "${DB_USER}" -h "${DB_HOST}" -P "${DB_PORT}" \
        "${DB_NAME}" -e "SELECT 1;" >/dev/null 2>&1; then
     success "Database connection verified."
 else
@@ -367,7 +375,11 @@ ADMIN_PASSWORD=${ADMIN_PASSWORD}
 ADMIN_EMAIL=${ADMIN_EMAIL}
 
 # Session lifetime (minutes)
-ACCESS_TOKEN_EXPIRE_MINUTES=480
+ACCESS_TOKEN_EXPIRE_MINUTES=120
+
+# HTTPS — set to true when behind SSL terminating proxy (Caddy/Nginx with TLS)
+# This enables secure cookie flags and HSTS headers
+HTTPS_ENABLED=$([ "$IS_LOCAL" == "true" ] && echo "false" || echo "true")
 ENVEOF
 chmod 600 "${ENV_FILE}"
 success ".env written (mode 600)."

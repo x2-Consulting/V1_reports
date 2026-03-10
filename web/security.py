@@ -18,17 +18,33 @@ load_dotenv()
 
 # ── Configuration ─────────────────────────────────────────────────────────────
 
-SECRET_KEY: str = os.getenv("SECRET_KEY", "change-this-to-a-random-32-char-secret-key!!")
+_INSECURE_DEFAULT_KEY = "change-this-to-a-random-32-char-secret-key!!"
+
+SECRET_KEY: str = os.getenv("SECRET_KEY", _INSECURE_DEFAULT_KEY)
+if SECRET_KEY == _INSECURE_DEFAULT_KEY:
+    import sys
+    print(
+        "[TV1 Reporter] FATAL: SECRET_KEY is set to the insecure default. "
+        "Generate a real key with: python3 -c \"import secrets; print(secrets.token_hex(32))\" "
+        "and set it in your .env file.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+
 ALGORITHM: str = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
+ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "120"))  # 2 hours
 
 _raw_fernet_key: str = os.getenv("FERNET_KEY", "")
-if _raw_fernet_key:
-    _fernet = Fernet(_raw_fernet_key.encode())
-else:
-    # Generate a key at runtime if not configured — keys won't survive restarts without .env
-    _generated_key = Fernet.generate_key()
-    _fernet = Fernet(_generated_key)
+if not _raw_fernet_key:
+    import sys
+    print(
+        "[TV1 Reporter] FATAL: FERNET_KEY is not set. "
+        "Generate one with: python3 -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\" "
+        "and set it in your .env file.",
+        file=sys.stderr,
+    )
+    sys.exit(1)
+_fernet = Fernet(_raw_fernet_key.encode())
 
 # ── Password hashing ──────────────────────────────────────────────────────────
 

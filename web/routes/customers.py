@@ -2,9 +2,13 @@
 Customer management routes: CRUD and API key management.
 """
 
+import os
+
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from sqlalchemy.orm import Session
+
+_SECURE_COOKIES: bool = os.getenv("HTTPS_ENABLED", "false").lower() == "true"
 
 from database import get_db
 from deps import get_csrf_token, get_current_user, validate_csrf_form
@@ -18,14 +22,14 @@ router = APIRouter(prefix="/customers")
 def _flash(response, message: str, category: str = "info") -> None:
     import os
     from itsdangerous import URLSafeSerializer
-    secret = os.getenv("SECRET_KEY", "change-this-to-a-random-32-char-secret-key!!")
+    secret = os.getenv("SECRET_KEY")
     s = URLSafeSerializer(secret, salt="flash")
     encoded = s.dumps({"message": message, "category": category})
     response.set_cookie("flash", encoded, httponly=True, samesite="lax", max_age=60)
 
 
 def _set_csrf_cookie(response, token: str) -> None:
-    response.set_cookie("csrf_token", token, httponly=False, samesite="lax", secure=False)
+    response.set_cookie("csrf_token", token, httponly=False, samesite="lax", secure=_SECURE_COOKIES)
 
 
 # ── Customer list ─────────────────────────────────────────────────────────────
