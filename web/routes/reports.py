@@ -256,6 +256,144 @@ def _run_report_background(report_id: int) -> None:
                 db.commit()
                 return
 
+        # ── Endpoint Health Summary ────────────────────────────────────────────
+        elif report.report_type == "endpoint_health":
+            from collectors.endpoint_health import collect_endpoint_health
+            from reports.endpoint_health_report import generate_endpoint_health_report
+            try:
+                data = collect_endpoint_health(client)
+            except Exception as exc:
+                collection_errors.append(f"Endpoint health data: {exc}")
+                data = {}
+            client.close()
+            try:
+                report.report_data_json = json.dumps(data)
+            except Exception:
+                pass
+            customer_name = report.customer.name if report.customer else "Customer"
+            try:
+                generate_endpoint_health_report(data, customer_name, report.days_back, output_path)
+            except Exception as exc:
+                report.status = "failed"
+                report.error_message = f"PDF generation failed: {exc}"
+                db.commit()
+                return
+
+        # ── User Risk Report ───────────────────────────────────────────────────
+        elif report.report_type == "user_risk":
+            from collectors.user_risk import collect_user_risk
+            from reports.user_risk_report import generate_user_risk_report
+            try:
+                data = collect_user_risk(client, start_time, end_time)
+            except Exception as exc:
+                collection_errors.append(f"User risk data: {exc}")
+                data = {}
+            client.close()
+            try:
+                report.report_data_json = json.dumps(data)
+            except Exception:
+                pass
+            customer_name = report.customer.name if report.customer else "Customer"
+            try:
+                generate_user_risk_report(data, customer_name, report.days_back, output_path)
+            except Exception as exc:
+                report.status = "failed"
+                report.error_message = f"PDF generation failed: {exc}"
+                db.commit()
+                return
+
+        # ── OAT Detection Trend ────────────────────────────────────────────────
+        elif report.report_type == "oat_trend":
+            from collectors.oat_trend import collect_oat_trend
+            from reports.oat_trend_report import generate_oat_trend_report
+            try:
+                data = collect_oat_trend(client, start_time, end_time)
+            except Exception as exc:
+                collection_errors.append(f"OAT trend data: {exc}")
+                data = {}
+            client.close()
+            try:
+                report.report_data_json = json.dumps(data)
+            except Exception:
+                pass
+            customer_name = report.customer.name if report.customer else "Customer"
+            try:
+                generate_oat_trend_report(data, customer_name, report.days_back, output_path)
+            except Exception as exc:
+                report.status = "failed"
+                report.error_message = f"PDF generation failed: {exc}"
+                db.commit()
+                return
+
+        # ── Risk Index Report ──────────────────────────────────────────────────
+        elif report.report_type == "risk_index":
+            from collectors.risk_index import collect_risk_index
+            from reports.risk_index_report import generate_risk_index_report
+            try:
+                data = collect_risk_index(client, start_time, end_time)
+            except Exception as exc:
+                collection_errors.append(f"Risk index data: {exc}")
+                data = {}
+            client.close()
+            try:
+                report.report_data_json = json.dumps(data)
+            except Exception:
+                pass
+            customer_name = report.customer.name if report.customer else "Customer"
+            try:
+                generate_risk_index_report(data, customer_name, report.days_back, output_path)
+            except Exception as exc:
+                report.status = "failed"
+                report.error_message = f"PDF generation failed: {exc}"
+                db.commit()
+                return
+
+        # ── Attack Surface Posture ─────────────────────────────────────────────
+        elif report.report_type == "attack_surface":
+            from collectors.attack_surface import collect_attack_surface
+            from reports.attack_surface_report import generate_attack_surface_report
+            try:
+                data = collect_attack_surface(client, start_time, end_time)
+            except Exception as exc:
+                collection_errors.append(f"Attack surface data: {exc}")
+                data = {}
+            client.close()
+            try:
+                report.report_data_json = json.dumps(data)
+            except Exception:
+                pass
+            customer_name = report.customer.name if report.customer else "Customer"
+            try:
+                generate_attack_surface_report(data, customer_name, report.days_back, output_path)
+            except Exception as exc:
+                report.status = "failed"
+                report.error_message = f"PDF generation failed: {exc}"
+                db.commit()
+                return
+
+        # ── Incident Response Summary ──────────────────────────────────────────
+        elif report.report_type == "incident_response":
+            from collectors.incident_response import collect_incident_response
+            from reports.incident_response_report import generate_incident_response_report
+            try:
+                data = collect_incident_response(client, start_time, end_time)
+            except Exception as exc:
+                collection_errors.append(f"Incident response data: {exc}")
+                data = {}
+            client.close()
+            try:
+                report.report_data_json = json.dumps(data)
+            except Exception:
+                pass
+            customer_name = report.customer.name if report.customer else "Customer"
+            try:
+                generate_incident_response_report(data, customer_name, report.days_back, output_path)
+            except Exception as exc:
+                report.status = "failed"
+                report.error_message = f"PDF generation failed: {exc}"
+                db.commit()
+                return
+
         # ── Security overview report (default) ────────────────────────────────
         else:
             alerts = []
@@ -357,7 +495,9 @@ async def report_run(
 
     allowed_types = {"security_overview", "patch_remediation", "executive_summary",
                      "mitre_heatmap", "targeted_assets", "threat_behaviour",
-                     "alert_response", "blocked_threats"}
+                     "alert_response", "blocked_threats",
+                     "endpoint_health", "user_risk", "oat_trend",
+                     "risk_index", "attack_surface", "incident_response"}
     safe_report_type = report_type if report_type in allowed_types else "security_overview"
 
     report = Report(
@@ -554,6 +694,12 @@ async def report_download(
         "threat_behaviour":  "Threat_Behaviour",
         "alert_response":    "Alert_Response",
         "blocked_threats":   "Blocked_Threats",
+        "endpoint_health":   "Endpoint_Health_Summary",
+        "user_risk":         "User_Risk_Report",
+        "oat_trend":         "OAT_Detection_Trend",
+        "risk_index":        "Risk_Index_Report",
+        "attack_surface":    "Attack_Surface_Posture",
+        "incident_response": "Incident_Response_Summary",
     }
     type_label = _type_labels.get(report.report_type, report.report_type.replace(" ", "_"))
     customer_name = report.customer.name.replace(" ", "_") if report.customer else "report"

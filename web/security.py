@@ -84,6 +84,36 @@ def decode_access_token(token: str) -> dict | None:
         return None
 
 
+# ── Portal JWT (customer-facing, read-only) ───────────────────────────────────
+
+PORTAL_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("PORTAL_TOKEN_EXPIRE_MINUTES", "480"))  # 8 hours
+
+
+def create_portal_token(portal_user_id: int, customer_id: int) -> str:
+    """Create a signed JWT for a customer portal user."""
+    expire = datetime.now(tz=timezone.utc) + timedelta(minutes=PORTAL_TOKEN_EXPIRE_MINUTES)
+    payload = {
+        "sub": f"portal:{portal_user_id}",
+        "customer_id": customer_id,
+        "exp": expire,
+        "type": "portal",
+    }
+    return _pyjwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+
+def decode_portal_token(token: str) -> dict | None:
+    """Decode and validate a portal JWT. Returns payload or None."""
+    try:
+        payload = _pyjwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        if payload.get("type") != "portal":
+            return None
+        if not str(payload.get("sub", "")).startswith("portal:"):
+            return None
+        return payload
+    except _pyjwt.PyJWTError:
+        return None
+
+
 # ── Fernet encryption for API keys ────────────────────────────────────────────
 
 def encrypt_api_key(plain_key: str) -> str:

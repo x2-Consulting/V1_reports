@@ -216,6 +216,8 @@ from routes.customers import router as customers_router
 from routes.reports import router as reports_router
 from routes.admin import router as admin_router
 from routes.superadmin import router as superadmin_router
+from routes.portal import router as portal_router
+from routes.portal_admin import router as portal_admin_router
 
 app.include_router(auth_router)
 app.include_router(dashboard_router)
@@ -223,6 +225,8 @@ app.include_router(customers_router)
 app.include_router(reports_router)
 app.include_router(admin_router)
 app.include_router(superadmin_router)
+app.include_router(portal_router)
+app.include_router(portal_admin_router)
 
 
 # ── Global 307 redirect handler (login redirect) ─────────────────────────────
@@ -233,7 +237,9 @@ from fastapi.responses import RedirectResponse
 
 @app.exception_handler(FastAPIHTTPException)
 async def http_exception_handler(request: Request, exc: FastAPIHTTPException):
-    if exc.status_code == 307 and exc.headers and exc.headers.get("Location") == "/login":
-        return RedirectResponse(url="/login", status_code=302)
+    if exc.status_code == 307 and exc.headers:
+        loc = exc.headers.get("Location")
+        if loc in ("/login", "/portal/login"):
+            return RedirectResponse(url=loc, status_code=302)
     from fastapi.exception_handlers import http_exception_handler as default_handler
     return await default_handler(request, exc)

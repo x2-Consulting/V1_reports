@@ -1,0 +1,119 @@
+{% extends "base.html" %}
+
+{% block title %}New Portal User — TV1 Reporter{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+  <div class="col">
+    <nav aria-label="breadcrumb">
+      <ol class="breadcrumb">
+        <li class="breadcrumb-item"><a href="/admin/portal-users">Portal Users</a></li>
+        <li class="breadcrumb-item active">New Portal User</li>
+      </ol>
+    </nav>
+    <h2 class="fw-bold mb-0">
+      <i class="bi bi-person-plus-fill me-2 tv1-red"></i>New Portal User
+    </h2>
+    <p class="text-muted mb-0">Create a customer-facing read-only account for the security portal.</p>
+  </div>
+</div>
+
+<div class="row justify-content-center">
+  <div class="col-md-7 col-lg-6">
+    <div class="card border-0 shadow-sm">
+      <div class="card-body p-4">
+
+        {% if error %}
+        <div class="alert alert-danger py-2 small">
+          <i class="bi bi-exclamation-triangle-fill me-1"></i>{{ error }}
+        </div>
+        {% endif %}
+
+        <form action="/admin/portal-users" method="post" novalidate>
+          <input type="hidden" name="csrf_token" value="{{ csrf_token }}" />
+
+          <!-- Customer dropdown -->
+          <div class="mb-3">
+            <label for="customer_id" class="form-label fw-semibold">
+              <i class="bi bi-building me-1"></i>Customer
+            </label>
+            <select class="form-select" id="customer_id" name="customer_id" required>
+              <option value="">— Select a customer —</option>
+              {% for c in customers %}
+              <option value="{{ c.id }}"
+                {% if form is defined and form.customer_id == c.id %}selected{% endif %}>
+                {{ c.name }}
+              </option>
+              {% endfor %}
+            </select>
+            <div class="form-text">The portal user will only see this customer's reports.</div>
+          </div>
+
+          <!-- Username -->
+          <div class="mb-3">
+            <label for="username" class="form-label fw-semibold">
+              <i class="bi bi-person me-1"></i>Username
+            </label>
+            <input
+              type="text"
+              class="form-control"
+              id="username"
+              name="username"
+              value="{{ form.username if form is defined else '' }}"
+              required
+              maxlength="64"
+              placeholder="e.g. acme_portal"
+              autofocus
+              autocomplete="off"
+            />
+            <div class="form-text">Must be unique across all portal users.</div>
+          </div>
+
+          <!-- Email (optional) -->
+          <div class="mb-3">
+            <label for="email" class="form-label fw-semibold">
+              <i class="bi bi-envelope me-1"></i>Email <span class="text-muted fw-normal">(optional)</span>
+            </label>
+            <input
+              type="email"
+              class="form-control"
+              id="email"
+              name="email"
+              value="{{ form.email if form is defined else '' }}"
+              maxlength="255"
+              placeholder="contact@customer.com"
+              autocomplete="off"
+            />
+          </div>
+
+          <!-- Password -->
+          <div class="mb-4">
+            <label for="password" class="form-label fw-semibold">
+              <i class="bi bi-lock me-1"></i>Password
+            </label>
+            <input
+              type="password"
+              class="form-control"
+              id="password"
+              name="password"
+              required
+              minlength="12"
+              placeholder="Min. 12 characters"
+              autocomplete="new-password"
+            />
+            <div class="form-text">Minimum 12 characters. Share securely with the customer contact.</div>
+          </div>
+
+          <div class="d-flex gap-2">
+            <button type="submit" class="btn btn-tv1 flex-fill">
+              <i class="bi bi-person-plus-fill me-1"></i>Create Portal User
+            </button>
+            <a href="/admin/portal-users" class="btn btn-outline-secondary">Cancel</a>
+          </div>
+        </form>
+
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

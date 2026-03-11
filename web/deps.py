@@ -9,8 +9,8 @@ from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import Customer, Report, User
-from security import decode_access_token, generate_csrf_token, verify_csrf_token
+from models import Customer, CustomerPortalUser, Report, User
+from security import decode_access_token, decode_portal_token, generate_csrf_token, verify_csrf_token
 
 
 # ── Database session ──────────────────────────────────────────────────────────
@@ -111,6 +111,47 @@ def assert_report_access(report: Report | None, current_user: User, db: Session)
         if not customer or customer.organisation_id != current_user.organisation_id:
             raise HTTPException(status_code=404, detail="Report not found")
     return report
+
+
+# ── Customer portal user ──────────────────────────────────────────────────────
+
+def get_current_portal_user_optional(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> Optional[CustomerPortalUser]:
+    """Return the logged-in portal user or None (does not raise)."""
+    token = request.cookies.get("portal_session")
+    if not token:
+        return None
+    payload = decode_portal_token(token)
+    if payload is None:
+        return None
+    try:
+        portal_user_id = int(str(payload["sub"]).split(":")[1])
+    except (KeyError, ValueError, IndexError):
+        return None
+    return (
+        db.query(CustomerPortalUser)
+        .filter(
+            CustomerPortalUser.id == portal_user_id,
+            CustomerPortalUser.is_active == True,
+        )
+        .first()
+    )
+
+
+def get_current_portal_user(
+    request: Request,
+    db: Session = Depends(get_db),
+) -> CustomerPortalUser:
+    """Return the portal user or redirect to /portal/login."""
+    user = get_current_portal_user_optional(request, db)
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_307_TEMPORARY_REDIRECT,
+            headers={"Location": "/portal/login"},
+        )
+    return user
 
 
 # ── CSRF ─────────────────────────────────────────────────────────────────────

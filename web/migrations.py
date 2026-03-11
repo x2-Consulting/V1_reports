@@ -58,6 +58,10 @@ def run(engine: Engine, db: Session) -> None:
         engine, "audit_log", "organisation_id",
         "INT NULL DEFAULT NULL"
     )
+    _add_column_if_missing(
+        engine, "reports", "report_data_json",
+        "MEDIUMTEXT NULL DEFAULT NULL"
+    )
 
     # ── 2. Foreign key constraints (best-effort — skip if FK already exists) ──
 

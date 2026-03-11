@@ -88,6 +88,9 @@ class Customer(Base):
     reports: Mapped[list["Report"]] = relationship(
         "Report", back_populates="customer", cascade="all, delete-orphan"
     )
+    portal_users: Mapped[list["CustomerPortalUser"]] = relationship(
+        "CustomerPortalUser", back_populates="customer", cascade="all, delete-orphan"
+    )
 
 
 class CustomerApiKey(Base):
@@ -172,6 +175,9 @@ class Report(Base):
     severity_filter: Mapped[str] = mapped_column(
         Text, nullable=True
     )  # JSON string, e.g. '["critical","high"]'
+    report_data_json: Mapped[str] = mapped_column(
+        Text(length=16777215), nullable=True
+    )  # MEDIUMTEXT — serialised collector dict for portal dashboard consumption
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=_utcnow, nullable=False
     )
@@ -179,6 +185,31 @@ class Report(Base):
 
     customer: Mapped["Customer"] = relationship("Customer", back_populates="reports")
     api_key: Mapped["CustomerApiKey"] = relationship("CustomerApiKey", back_populates="reports")
+
+
+class CustomerPortalUser(Base):
+    """
+    A customer-facing read-only login account.
+    Scoped to exactly one Customer — sees only that customer's reports.
+    Completely separate from analyst User accounts.
+    """
+    __tablename__ = "customer_portal_users"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    customer_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("customers.id", ondelete="CASCADE"),
+        nullable=False, index=True
+    )
+    username: Mapped[str] = mapped_column(String(64), unique=True, nullable=False, index=True)
+    email: Mapped[str] = mapped_column(String(255), nullable=True)
+    hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=_utcnow, nullable=False
+    )
+    last_login_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    customer: Mapped["Customer"] = relationship("Customer", back_populates="portal_users")
 
 
 class AuditLog(Base):

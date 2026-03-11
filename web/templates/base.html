@@ -87,6 +87,11 @@
               <i class="bi bi-database-fill me-1"></i>NVD Cache
             </a>
           </li>
+          <li class="nav-item">
+            <a class="nav-link admin-link {% if '/admin/portal-users' in request.url.path %}active{% endif %}" href="/admin/portal-users">
+              <i class="bi bi-person-badge-fill me-1"></i>Portal Users
+            </a>
+          </li>
           {% endif %}
           {% if current_user.is_superadmin %}
           <li class="nav-item">
