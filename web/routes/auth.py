@@ -61,7 +61,7 @@ async def login_get(
 
 
 @router.post("/login", response_class=HTMLResponse)
-@limiter.limit("10/minute")
+@limiter.limit("10/minute;50/hour")
 async def login_post(
     request: Request,
     username: str = Form(...),
@@ -95,7 +95,7 @@ async def login_post(
 
     # Successful login
     audit_log(db, request, actor=user.username, event="auth.login_success")
-    token = create_access_token(subject=user.username, is_admin=user.is_admin)
+    token = create_access_token(subject=user.username)
     redirect = RedirectResponse(url="/", status_code=302)
     redirect.set_cookie(
         "session",
@@ -110,8 +110,16 @@ async def login_post(
 
 
 @router.post("/logout")
-async def logout(request: Request):
+async def logout(
+    request: Request,
+    csrf_token_form: str = Form(alias="csrf_token"),
+    db: Session = Depends(get_db),
+):
     """Clear the session cookie and redirect to login."""
+    validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
+    user = get_current_user_optional(request, db)
+    if user:
+        audit_log(db, request, actor=user.username, event="auth.logout")
     response = RedirectResponse(url="/login", status_code=302)
     response.delete_cookie("session")
     response.delete_cookie("csrf_token")

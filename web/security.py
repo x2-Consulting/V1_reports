@@ -60,13 +60,12 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 # ── JWT ───────────────────────────────────────────────────────────────────────
 
-def create_access_token(subject: str, is_admin: bool = False) -> str:
+def create_access_token(subject: str) -> str:
     """Create a signed JWT with the given subject (username)."""
     expire = datetime.now(tz=timezone.utc) + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     payload = {
         "sub": subject,
         "exp": expire,
-        "is_admin": is_admin,
     }
     return _pyjwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 

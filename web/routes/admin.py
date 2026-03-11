@@ -160,7 +160,10 @@ async def user_create(
         return response
 
     if current_user.is_superadmin and organisation_id:
-        assigned_org_id = int(organisation_id)
+        try:
+            assigned_org_id = int(organisation_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid organisation_id")
     else:
         assigned_org_id = current_user.organisation_id
 
@@ -235,6 +238,10 @@ async def user_update(
     if not current_user.is_superadmin and edit_user.organisation_id != current_user.organisation_id:
         raise HTTPException(status_code=404, detail="User not found")
 
+    # Org admins cannot modify other admins — prevents privilege-level conflicts
+    if not current_user.is_superadmin and edit_user.is_admin and edit_user.id != current_user.id:
+        raise HTTPException(status_code=403, detail="Cannot modify another admin's account.")
+
     # Prevent removing admin from yourself
     new_is_admin = bool(is_admin)
     if edit_user.id == current_user.id and not new_is_admin:
@@ -263,7 +270,13 @@ async def user_update(
     edit_user.email = email.strip()
     edit_user.is_admin = new_is_admin
     if current_user.is_superadmin:
-        edit_user.organisation_id = int(organisation_id) if organisation_id else None
+        if organisation_id:
+            try:
+                edit_user.organisation_id = int(organisation_id)
+            except (ValueError, TypeError):
+                raise HTTPException(status_code=400, detail="Invalid organisation_id")
+        else:
+            edit_user.organisation_id = None
     db.commit()
     audit_log(db, request, actor=current_user.username, event="user.update",
               target=f"user:{edit_user.username}",

@@ -447,11 +447,15 @@ def _run_report_background(report_id: int) -> None:
         db.commit()
 
     except Exception as exc:
+        import logging as _logging
+        _logging.getLogger("tv1.reports").exception(
+            "Unexpected error in background report job report_id=%s", report_id
+        )
         try:
             report = db.query(Report).filter(Report.id == report_id).first()
             if report:
                 report.status = "failed"
-                report.error_message = f"Unexpected error: {exc}"
+                report.error_message = "An unexpected error occurred. Check server logs for details."
                 db.commit()
         except Exception:
             pass
@@ -557,6 +561,10 @@ async def csv_upload_run(
 ):
     validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
 
+    customer_name = customer_name.strip()
+    if len(customer_name) > 128:
+        raise HTTPException(status_code=400, detail="Customer name must not exceed 128 characters.")
+
     parent_dir = str(Path(__file__).resolve().parents[3])
     if parent_dir not in sys.path:
         sys.path.insert(0, parent_dir)
@@ -564,7 +572,10 @@ async def csv_upload_run(
     from collectors.csv_patch import parse_csv_to_patch_groups
     from reports.patch_report import generate_patch_report
 
-    raw = await csv_file.read()
+    MAX_CSV_BYTES = 500 * 1024 * 1024  # 500 MB (matches server upload limit)
+    raw = await csv_file.read(MAX_CSV_BYTES + 1)
+    if len(raw) > MAX_CSV_BYTES:
+        raise HTTPException(status_code=413, detail="CSV file exceeds 500 MB limit.")
     if not raw:
         raise HTTPException(status_code=400, detail="Uploaded file is empty.")
 
@@ -598,7 +609,9 @@ async def csv_upload_run(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=f"CSV parse error: {exc}")
+        import logging as _logging
+        _logging.getLogger("tv1.reports").exception("CSV parse error")
+        raise HTTPException(status_code=500, detail="Failed to parse the uploaded CSV file.")
 
     OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     ts = datetime.now(tz=timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -680,7 +693,7 @@ async def report_download(
 
     # Guard against path traversal — resolve and confirm it's inside OUTPUT_DIR
     pdf_path = (OUTPUT_DIR / report.filename).resolve()
-    if not str(pdf_path).startswith(str(OUTPUT_DIR.resolve())):
+    if not str(pdf_path).startswith(str(OUTPUT_DIR.resolve()) + os.sep):
         raise HTTPException(status_code=400, detail="Invalid report path")
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found on disk")

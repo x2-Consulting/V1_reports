@@ -4,8 +4,9 @@ Handles authentication, pagination, and rate-limit retries.
 """
 
 import os
+import re
 from typing import Any, Generator
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 import httpx
 from dotenv import load_dotenv
@@ -74,9 +75,17 @@ class TrendVisionOneClient:
         params.setdefault("top", limit)
 
         next_url: str | None = path
+        _base_parsed = urlparse(self._base_url)
         while next_url:
             if next_url.startswith("http"):
-                # nextLink is a full URL — use it directly
+                # Validate nextLink stays on the same host to prevent SSRF
+                # and API key leakage to third-party hosts
+                _next_parsed = urlparse(next_url)
+                if (
+                    _next_parsed.netloc != _base_parsed.netloc
+                    or _next_parsed.scheme != "https"
+                ):
+                    break  # stop pagination rather than follow untrusted URL
                 response = self._client.get(next_url)
                 response.raise_for_status()
                 data = response.json()

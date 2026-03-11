@@ -181,7 +181,7 @@ async def portal_login_get(
 # ── POST /portal/login ────────────────────────────────────────────────────────
 
 @router.post("/login", response_class=HTMLResponse)
-@_limiter.limit("10/minute")
+@_limiter.limit("10/minute;50/hour")
 async def portal_login_post(
     request: Request,
     username: str = Form(...),
@@ -238,8 +238,12 @@ async def portal_login_post(
 # ── POST /portal/logout ───────────────────────────────────────────────────────
 
 @router.post("/logout")
-async def portal_logout(request: Request):
+async def portal_logout(
+    request: Request,
+    csrf_token_form: str = Form(alias="csrf_token"),
+):
     """Clear the portal session cookie and redirect to login."""
+    validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
     response = RedirectResponse(url="/portal/login", status_code=302)
     response.delete_cookie("portal_session")
     return response
@@ -371,7 +375,7 @@ async def portal_report_download(
 
     # Guard against path traversal — resolve and confirm it's inside OUTPUT_DIR
     pdf_path = (OUTPUT_DIR / report.filename).resolve()
-    if not str(pdf_path).startswith(str(OUTPUT_DIR.resolve())):
+    if not str(pdf_path).startswith(str(OUTPUT_DIR.resolve()) + os.sep):
         raise HTTPException(status_code=400, detail="Invalid report path")
     if not pdf_path.exists():
         raise HTTPException(status_code=404, detail="PDF file not found on disk")

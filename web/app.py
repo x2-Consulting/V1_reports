@@ -73,7 +73,8 @@ async def lifespan(app: FastAPI):
         user_count = db.query(User).count()
         if user_count == 0:
             admin_username = os.getenv("ADMIN_USERNAME", "admin")
-            admin_password = os.getenv("ADMIN_PASSWORD", "changeme123")
+            import secrets as _secrets
+            admin_password = os.getenv("ADMIN_PASSWORD") or _secrets.token_urlsafe(16)
             admin_email = os.getenv("ADMIN_EMAIL", "admin@localhost")
 
             from models import Organisation
@@ -193,7 +194,13 @@ async def flash_middleware(request: Request, call_next):
             from itsdangerous import URLSafeSerializer, BadSignature
             secret = os.getenv("SECRET_KEY")
             s = URLSafeSerializer(secret, salt="flash")
-            flash_data = s.loads(flash_cookie)
+            _raw = s.loads(flash_cookie)
+            if (
+                isinstance(_raw, dict)
+                and isinstance(_raw.get("message"), str)
+                and isinstance(_raw.get("category"), str)
+            ):
+                flash_data = _raw
         except Exception:
             flash_data = None
 

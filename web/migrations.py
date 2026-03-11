@@ -13,6 +13,12 @@ from __future__ import annotations
 import logging
 import re
 
+def _safe_ident(s: str) -> str:
+    """Assert that a string is a safe SQL identifier (letters, digits, underscores only)."""
+    if not re.match(r'^[a-zA-Z0-9_]+$', s):
+        raise ValueError(f"Unsafe SQL identifier: {s!r}")
+    return s
+
 from sqlalchemy import text
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
@@ -31,9 +37,11 @@ def _column_exists(engine: Engine, table: str, column: str) -> bool:
 
 
 def _add_column_if_missing(engine: Engine, table: str, column: str, definition: str) -> None:
+    t = _safe_ident(table)
+    c = _safe_ident(column)
     if not _column_exists(engine, table, column):
         with engine.begin() as conn:
-            conn.execute(text(f"ALTER TABLE `{table}` ADD COLUMN `{column}` {definition}"))
+            conn.execute(text(f"ALTER TABLE `{t}` ADD COLUMN `{c}` {definition}"))
         _log.info("Migration: added column %s.%s", table, column)
 
 
@@ -75,18 +83,27 @@ def run(engine: Engine, db: Session) -> None:
             )
             return (r.scalar() or 0) > 0
 
+    _ALLOWED_ON_DELETE = frozenset({"SET NULL", "CASCADE", "RESTRICT", "NO ACTION"})
+
     fks = [
         ("users",     "fk_users_organisation",     "organisation_id", "organisations", "SET NULL"),
         ("customers", "fk_customers_organisation",  "organisation_id", "organisations", "CASCADE"),
         ("audit_log", "fk_audit_organisation",      "organisation_id", "organisations", "SET NULL"),
     ]
     for table, name, col, ref, on_del in fks:
+        if on_del not in _ALLOWED_ON_DELETE:
+            _log.error("Migration: invalid ON DELETE action %r — skipping FK %s", on_del, name)
+            continue
         if not _fk_exists(table, name):
             try:
+                t = _safe_ident(table)
+                n = _safe_ident(name)
+                c = _safe_ident(col)
+                r = _safe_ident(ref)
                 with engine.begin() as conn:
                     conn.execute(text(
-                        f"ALTER TABLE `{table}` ADD CONSTRAINT `{name}` "
-                        f"FOREIGN KEY (`{col}`) REFERENCES `{ref}`(`id`) ON DELETE {on_del}"
+                        f"ALTER TABLE `{t}` ADD CONSTRAINT `{n}` "
+                        f"FOREIGN KEY (`{c}`) REFERENCES `{r}`(`id`) ON DELETE {on_del}"
                     ))
                 _log.info("Migration: added FK %s on %s.%s", name, table, col)
             except Exception as exc:

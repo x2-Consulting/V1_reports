@@ -180,7 +180,11 @@ async def portal_user_create(
         is_active=True,
     )
     db.add(portal_user)
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        return _render_error("Could not create portal user. The customer may no longer exist.")
 
     redirect = RedirectResponse(url="/admin/portal-users", status_code=302)
     _flash(redirect, f"Portal user '{portal_user.username}' created successfully.", "success")

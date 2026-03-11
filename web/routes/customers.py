@@ -21,8 +21,14 @@ from deps import (
     org_customer_filter,
     validate_csrf_form,
 )
+import re
+
 from models import Customer, CustomerApiKey, User
 from security import encrypt_api_key
+
+_ALLOWED_BASE_URL = re.compile(
+    r'^https://(?:api\.xdr\.trendmicro\.com|[a-z0-9-]+\.xdr\.trendmicro\.com)$'
+)
 from templating import templates
 
 router = APIRouter(prefix="/customers")
@@ -255,6 +261,13 @@ async def customer_add_key(
 ):
     validate_csrf_form(csrf_token_form, request.cookies.get("csrf_token"))
 
+    clean_base_url = base_url.strip().rstrip("/")
+    if not _ALLOWED_BASE_URL.match(clean_base_url):
+        raise HTTPException(
+            status_code=400,
+            detail="base_url must be a Trend Vision One API endpoint (https://*.xdr.trendmicro.com)."
+        )
+
     customer = assert_customer_access(
         db.query(Customer).filter(Customer.id == customer_id).first(),
         current_user,
@@ -265,7 +278,7 @@ async def customer_add_key(
         customer_id=customer_id,
         label=label.strip(),
         encrypted_key=encrypted,
-        base_url=base_url.strip().rstrip("/"),
+        base_url=clean_base_url,
         is_active=True,
     )
     db.add(key_record)
